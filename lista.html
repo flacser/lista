@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Precios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000000;
+    --fg:#ffffff;
+    --muted:#8a8a8a;
+    --surface:#0d0d0d;
+    --border:#1f1f1f;
+    --border-strong:#3a3a3a;
+    --ease-spring: cubic-bezier(.34,1.56,.64,1);
+  }
+
+  *{ box-sizing:border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    min-height:100%;
+    background:var(--bg);
+    color:var(--fg);
+  }
+
+  body{
+    font-family:'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+    min-height:100vh;
+    min-height:100dvh;
+    animation:pageFade .45s ease;
+  }
+
+  @keyframes pageFade{ from{ opacity:0; } to{ opacity:1; } }
+
+  button, input, select{ font-family:inherit; }
+
+  :focus{ outline:none; }
+  :focus-visible{ outline:2px solid var(--fg); outline-offset:2px; border-radius:4px; }
+
+  /* ---------- Header / búsqueda ---------- */
+
+  #searchHeader{
+    position:fixed;
+    top:0; left:0; right:0;
+    z-index:30;
+    display:flex;
+    justify-content:center;
+    padding:calc(22px + env(safe-area-inset-top)) 20px 14px;
+    background:var(--bg);
+  }
+
+  #searchWrap{ width:100%; max-width:560px; }
+
+  #searchInput{
+    width:100%;
+    text-align:center;
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--fg);
+    font-size:1.05rem;
+    padding:17px 22px;
+    border-radius:999px;
+    transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+
+  #searchInput::placeholder{ color:var(--muted); text-align:center; }
+  #searchInput:focus{ border-color:var(--border-strong); box-shadow:0 0 0 5px rgba(255,255,255,0.05); }
+
+  /* ---------- Contenido / resultados ---------- */
+
+  #app{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:100px 20px 150px;
+  }
+
+  #results{
+    width:100%;
+    max-width:560px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  @keyframes itemIn{
+    from{ opacity:0; transform:translateY(10px) scale(.98); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  .resultItem{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:15px 18px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:14px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease, transform .15s ease;
+    animation:itemIn .35s var(--ease-spring) both;
+  }
+
+  .resultItem:hover{
+    border-color:var(--border-strong);
+    background:#111111;
+    transform:translateY(-1px);
+  }
+
+  .resultItem:active{ transform:translateY(0) scale(.99); }
+
+  .resultInfo{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    min-width:0;
+  }
+
+  .resultName{
+    font-weight:600;
+    font-size:1rem;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .resultMeta{
+    font-size:0.78rem;
+    color:var(--muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .resultPrice{
+    font-weight:700;
+    font-size:1.4rem;
+    white-space:nowrap;
+    flex-shrink:0;
+    display:flex;
+    align-items:baseline;
+  }
+
+  .currency{
+    font-family:'Instrument Serif', serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:0.5em;
+    opacity:0.75;
+    margin-right:3px;
+  }
+
+  .empty{
+    color:var(--muted);
+    text-align:center;
+    margin-top:18px;
+    font-size:0.92rem;
+    animation:itemIn .35s ease both;
+  }
+
+  /* ---------- Botón + ---------- */
+
+  #addBtn{
+    position:fixed;
+    bottom:calc(30px + env(safe-area-inset-bottom));
+    left:50%;
+    width:66px;
+    height:66px;
+    border-radius:50%;
+    background:var(--fg);
+    color:var(--bg);
+    border:none;
+    font-size:2rem;
+    line-height:1;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 6px 20px rgba(255,255,255,0.16);
+    transition:transform .3s var(--ease-spring), opacity .2s ease, box-shadow .2s ease;
+    transform:translateX(-50%) scale(1);
+    z-index:20;
+  }
+
+  #addBtn span{ margin-top:-3px; }
+
+  #addBtn:hover{ transform:translateX(-50%) scale(1.07); box-shadow:0 8px 24px rgba(255,255,255,0.24); }
+  #addBtn:active{ transform:translateX(-50%) scale(0.92); }
+
+  #addBtn.hidden{
+    opacity:0;
+    transform:translateX(-50%) translateY(24px) scale(.7);
+    pointer-events:none;
+  }
+
+  /* ---------- Modal ---------- */
+
+  #modalOverlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.72);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:50;
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:opacity .2s ease, visibility .2s ease;
+  }
+
+  #modalOverlay.open{ opacity:1; visibility:visible; pointer-events:auto; }
+
+  #modal{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:26px;
+    width:100%;
+    max-width:420px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    transform:scale(.92) translateY(12px);
+    opacity:0;
+    transition:transform .3s var(--ease-spring), opacity .2s ease;
+  }
+
+  #modalOverlay.open #modal{ transform:scale(1) translateY(0); opacity:1; }
+
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+    width:100%;
+  }
+
+  .field label{
+    font-size:0.78rem;
+    color:var(--muted);
+    padding-left:3px;
+    letter-spacing:.01em;
+  }
+
+  #modal input, #modal select{
+    background:#000000;
+    border:1px solid var(--border);
+    color:var(--fg);
+    padding:13px 16px;
+    border-radius:10px;
+    font-size:0.95rem;
+    width:100%;
+    transition:border-color .15s ease;
+  }
+
+  #modal input::placeholder{ color:#555555; }
+  #modal input:focus, #modal select:focus{ border-color:var(--border-strong); }
+
+  #modal select{
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    cursor:pointer;
+    padding-right:42px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    background-size:16px;
+  }
+
+  #modal select option{ background:#0d0d0d; color:#fff; }
+
+  @keyframes fieldPop{
+    from{ opacity:0; transform:translateY(-6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .newCategoryField{ display:none; }
+  .field-pop{ animation:fieldPop .25s ease; }
+
+  .modalActions{
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    margin-top:6px;
+  }
+
+  .modalActions button{
+    flex:1;
+    max-width:170px;
+    padding:15px 0;
+    border-radius:13px;
+    cursor:pointer;
+    font-size:0.96rem;
+    font-weight:600;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--fg);
+    transition:background .15s ease, border-color .15s ease, transform .15s ease;
+  }
+
+  .modalActions button:hover{ background:#1a1a1a; border-color:var(--border-strong); }
+  .modalActions button:active{ transform:scale(.97); }
+
+  #saveBtn{
+    background:var(--fg);
+    color:var(--bg);
+    border:none;
+  }
+
+  #saveBtn:hover{ background:#e2e2e2; }
+
+  #deleteBtn{
+    align-self:center;
+    background:none;
+    border:none;
+    color:var(--muted);
+    text-decoration:underline;
+    font-size:0.85rem;
+    padding:2px 0;
+    cursor:pointer;
+    transition:color .15s ease;
+  }
+
+  #deleteBtn:hover{ color:var(--fg); background:none; }
+
+  @media (max-width:480px){
+    #searchHeader{ padding:calc(18px + env(safe-area-inset-top)) 16px 12px; }
+    #app{ padding:90px 16px 140px; }
+    #addBtn{ width:60px; height:60px; font-size:1.8rem; }
+    #modal{ padding:22px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header id="searchHeader">
+  <div id="searchWrap">
+    <input id="searchInput" type="text" placeholder="Buscar" autocomplete="off" autocapitalize="off" spellcheck="false">
+  </div>
+</header>
+
+<main id="app">
+  <div id="results"></div>
+</main>
+
+<button id="addBtn" aria-label="Agregar producto" aria-haspopup="dialog"><span>+</span></button>
+
+<div id="modalOverlay" role="dialog" aria-modal="true" aria-label="Producto">
+  <div id="modal">
+    <div class="field">
+      <label for="fieldName">Nombre</label>
+      <input id="fieldName" type="text" autocomplete="off" enterkeyhint="next">
+    </div>
+
+    <div class="field">
+      <label for="fieldCategory">Categoría</label>
+      <select id="fieldCategory"></select>
+    </div>
+
+    <div class="field newCategoryField" id="newCategoryField">
+      <label for="fieldCategoryNew">Nueva categoría</label>
+      <input id="fieldCategoryNew" type="text" autocomplete="off" enterkeyhint="next">
+    </div>
+
+    <div class="field">
+      <label for="fieldKeywords">Palabras clave</label>
+      <input id="fieldKeywords" type="text" autocomplete="off" placeholder="separadas por comas" enterkeyhint="next">
+    </div>
+
+    <div class="field">
+      <label for="fieldPrice">Precio</label>
+      <input id="fieldPrice" type="number" step="0.01" min="0" inputmode="decimal" enterkeyhint="done">
+    </div>
+
+    <div class="modalActions">
+      <button id="cancelBtn" type="button">Cancelar</button>
+      <button id="saveBtn" type="button">Guardar</button>
+    </div>
+
+    <button id="deleteBtn" type="button" style="display:none;">Eliminar producto</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORAGE_KEY = "preciosApp.productos.v1";
+
+  let products = [];
+  let editingId = null;
+  let searchFocused = false;
+
+  const searchInput = document.getElementById("searchInput");
+  const resultsEl = document.getElementById("results");
+  const addBtn = document.getElementById("addBtn");
+  const modalOverlay = document.getElementById("modalOverlay");
+  const fieldName = document.getElementById("fieldName");
+  const fieldCategory = document.getElementById("fieldCategory");
+  const newCategoryField = document.getElementById("newCategoryField");
+  const fieldCategoryNew = document.getElementById("fieldCategoryNew");
+  const fieldKeywords = document.getElementById("fieldKeywords");
+  const fieldPrice = document.getElementById("fieldPrice");
+  const deleteBtn = document.getElementById("deleteBtn");
+  const cancelBtn = document.getElementById("cancelBtn");
+  const saveBtn = document.getElementById("saveBtn");
+
+  // ---------- Persistencia ----------
+
+  function loadProducts(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      products = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(products)) products = [];
+    }catch(e){
+      products = [];
+    }
+  }
+
+  function saveProducts(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    }catch(e){
+      // almacenamiento no disponible; se ignora silenciosamente
+    }
+  }
+
+  function genId(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // ---------- Formato de precio ----------
+
+  function formatPrice(value){
+    let num = Number(value);
+    if (!isFinite(num)) num = 0;
+    num = Math.round((num + Number.EPSILON) * 100) / 100;
+    const parts = num.toString().split(".");
+    let intPart = parts[0];
+    const decPart = parts[1];
+    const negative = intPart.startsWith("-");
+    if (negative) intPart = intPart.slice(1);
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (negative ? "-" : "") + intPart + (decPart ? "." + decPart : "");
+  }
+
+  // ---------- Búsqueda tolerante a errores ----------
+
+  function normalize(str){
+    return (str || "")
+      .toString()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
+
+  function levenshtein(a, b){
+    if (a === b) return 0;
+    const al = a.length, bl = b.length;
+    if (al === 0) return bl;
+    if (bl === 0) return al;
+    let prev = new Array(bl + 1);
+    for (let j = 0; j <= bl; j++) prev[j] = j;
+    for (let i = 1; i <= al; i++){
+      const curr = new Array(bl + 1);
+      curr[0] = i;
+      for (let j = 1; j <= bl; j++){
+        if (a[i - 1] === b[j - 1]){
+          curr[j] = prev[j - 1];
+        }else{
+          curr[j] = Math.min(prev[j - 1] + 1, curr[j - 1] + 1, prev[j] + 1);
+        }
+      }
+      prev = curr;
+    }
+    return prev[bl];
+  }
+
+  function typoThreshold(len){
+    if (len <= 2) return 0;
+    if (len <= 4) return 1;
+    if (len <= 7) return 2;
+    return 3;
+  }
+
+  function wordMatchScore(token, word){
+    if (!word) return 0;
+    if (word === token) return 3;
+    if (word.indexOf(token) !== -1 || token.indexOf(word) !== -1) return 2;
+    const threshold = typoThreshold(token.length);
+    if (threshold === 0) return 0;
+    const dist = levenshtein(token, word);
+    if (dist <= threshold) return 1.5 - (dist / (threshold + 1)) * 0.6;
+    return 0;
+  }
+
+  function productFieldWords(product){
+    const words = [];
+    normalize(product.name).split(/\s+/).forEach(w => { if (w) words.push(w); });
+    normalize(product.category).split(/\s+/).forEach(w => { if (w) words.push(w); });
+    normalize(product.keywords).split(/[\s,]+/).forEach(w => { if (w) words.push(w); });
+    return words;
+  }
+
+  function tokenScoreForProduct(token, words, product){
+    let best = 0;
+    for (let i = 0; i < words.length; i++){
+      const s = wordMatchScore(token, words[i]);
+      if (s > best) best = s;
+    }
+    if (/^\d+(\.\d+)?$/.test(token)){
+      const rawPrice = String(product.price);
+      const formattedPrice = formatPrice(product.price).replace(/,/g, "");
+      if (rawPrice === token || formattedPrice === token){
+        best = Math.max(best, 3);
+      }else if (rawPrice.indexOf(token) !== -1 || formattedPrice.indexOf(token) !== -1){
+        best = Math.max(best, 2.2);
+      }
+    }
+    return best;
+  }
+
+  function searchProducts(query){
+    const q = normalize(query);
+    if (!q) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const scored = [];
+    for (let i = 0; i < products.length; i++){
+      const product = products[i];
+      const words = productFieldWords(product);
+      let total = 0;
+      let allMatch = true;
+      for (let t = 0; t < tokens.length; t++){
+        const s = tokenScoreForProduct(tokens[t], words, product);
+        if (s <= 0){ allMatch = false; break; }
+        total += s;
+      }
+      if (allMatch) scored.push({ product, score: total });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.product);
+  }
+
+  // ---------- Render resultados ----------
+
+  function renderResults(list){
+    resultsEl.innerHTML = "";
+    if (list.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Sin resultados";
+      resultsEl.appendChild(empty);
+      return;
+    }
+    list.forEach((p, i) => {
+      const item = document.createElement("div");
+      item.className = "resultItem";
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+      item.style.animationDelay = Math.min(i * 0.04, 0.3) + "s";
+
+      const info = document.createElement("div");
+      info.className = "resultInfo";
+
+      const name = document.createElement("div");
+      name.className = "resultName";
+      name.textContent = p.name;
+      info.appendChild(name);
+
+      if (p.category){
+        const meta = document.createElement("div");
+        meta.className = "resultMeta";
+        meta.textContent = p.category;
+        info.appendChild(meta);
+      }
+
+      const price = document.createElement("div");
+      price.className = "resultPrice";
+      const currency = document.createElement("span");
+      currency.className = "currency";
+      currency.textContent = "Q";
+      price.appendChild(currency);
+      price.appendChild(document.createTextNode(formatPrice(p.price)));
+
+      item.appendChild(info);
+      item.appendChild(price);
+
+      const openThis = () => openEditModal(p.id);
+      item.addEventListener("click", openThis);
+      item.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " "){
+          e.preventDefault();
+          openThis();
+        }
+      });
+
+      resultsEl.appendChild(item);
+    });
+  }
+
+  function refreshView(){
+    const q = searchInput.value;
+    if (q.trim()){
+      renderResults(searchProducts(q));
+    }else{
+      resultsEl.innerHTML = "";
+    }
+  }
+
+  // ---------- Visibilidad del botón + ----------
+
+  function updateAddBtnVisibility(){
+    const shouldHide = searchFocused || searchInput.value.trim() !== "";
+    addBtn.classList.toggle("hidden", shouldHide);
+  }
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value;
+    if (q.trim()){
+      renderResults(searchProducts(q));
+    }else{
+      resultsEl.innerHTML = "";
+    }
+    updateAddBtnVisibility();
+  });
+
+  searchInput.addEventListener("focus", () => {
+    searchFocused = true;
+    updateAddBtnVisibility();
+  });
+
+  searchInput.addEventListener("blur", () => {
+    searchFocused = false;
+    updateAddBtnVisibility();
+  });
+
+  // ---------- Categorías (desplegable) ----------
+
+  function getCategories(){
+    return Array.from(new Set(products.map(p => p.category).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, "es"));
+  }
+
+  function buildCategoryOptions(selected){
+    fieldCategory.innerHTML = "";
+
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "Sin categoría";
+    fieldCategory.appendChild(noneOpt);
+
+    getCategories().forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      fieldCategory.appendChild(opt);
+    });
+
+    const newOpt = document.createElement("option");
+    newOpt.value = "__new__";
+    newOpt.textContent = "+ Nueva categoría";
+    fieldCategory.appendChild(newOpt);
+
+    fieldCategory.value = selected || "";
+  }
+
+  function showNewCategoryField(){
+    newCategoryField.style.display = "flex";
+    newCategoryField.style.flexDirection = "column";
+    newCategoryField.classList.remove("field-pop");
+    void newCategoryField.offsetWidth;
+    newCategoryField.classList.add("field-pop");
+    setTimeout(() => fieldCategoryNew.focus(), 60);
+  }
+
+  function hideNewCategoryField(){
+    newCategoryField.style.display = "none";
+    fieldCategoryNew.value = "";
+  }
+
+  fieldCategory.addEventListener("change", () => {
+    if (fieldCategory.value === "__new__"){
+      showNewCategoryField();
+    }else{
+      hideNewCategoryField();
+    }
+  });
+
+  // ---------- Modal ----------
+
+  function clearFieldErrors(){
+    [fieldName, fieldPrice].forEach(f => f.style.borderColor = "");
+  }
+
+  function openAddModal(){
+    editingId = null;
+    fieldName.value = "";
+    fieldKeywords.value = "";
+    fieldPrice.value = "";
+    clearFieldErrors();
+    buildCategoryOptions("");
+    hideNewCategoryField();
+    deleteBtn.style.display = "none";
+    modalOverlay.classList.add("open");
+    setTimeout(() => fieldName.focus(), 80);
+  }
+
+  function openEditModal(id){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    editingId = id;
+    fieldName.value = p.name;
+    fieldKeywords.value = p.keywords || "";
+    fieldPrice.value = p.price;
+    clearFieldErrors();
+    buildCategoryOptions(p.category || "");
+    hideNewCategoryField();
+    deleteBtn.style.display = "inline-block";
+    modalOverlay.classList.add("open");
+    setTimeout(() => fieldName.focus(), 80);
+  }
+
+  function closeModal(){
+    modalOverlay.classList.remove("open");
+  }
+
+  function handleSave(){
+    const name = fieldName.value.trim();
+    const keywords = fieldKeywords.value.trim();
+    const priceVal = parseFloat(fieldPrice.value);
+    let category = fieldCategory.value === "__new__"
+      ? fieldCategoryNew.value.trim()
+      : fieldCategory.value;
+
+    clearFieldErrors();
+
+    if (!name){
+      fieldName.style.borderColor = "#666666";
+      fieldName.focus();
+      return;
+    }
+    if (!isFinite(priceVal) || priceVal < 0){
+      fieldPrice.style.borderColor = "#666666";
+      fieldPrice.focus();
+      return;
+    }
+
+    if (editingId){
+      const p = products.find(x => x.id === editingId);
+      if (p){
+        p.name = name;
+        p.category = category;
+        p.keywords = keywords;
+        p.price = priceVal;
+      }
+    }else{
+      products.push({ id: genId(), name, category, keywords, price: priceVal });
+    }
+
+    saveProducts();
+    closeModal();
+    refreshView();
+  }
+
+  function handleDelete(){
+    if (!editingId) return;
+    products = products.filter(x => x.id !== editingId);
+    saveProducts();
+    closeModal();
+    refreshView();
+  }
+
+  addBtn.addEventListener("click", openAddModal);
+  cancelBtn.addEventListener("click", closeModal);
+  saveBtn.addEventListener("click", handleSave);
+  deleteBtn.addEventListener("click", handleDelete);
+
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modalOverlay.classList.contains("open")){
+      closeModal();
+    }
+  });
+
+  // ---------- Enter -> siguiente campo ----------
+
+  function getFieldOrder(){
+    const order = [fieldName, fieldCategory];
+    if (fieldCategory.value === "__new__"){
+      order.push(fieldCategoryNew);
+    }
+    order.push(fieldKeywords, fieldPrice);
+    return order;
+  }
+
+  function focusNext(current){
+    const order = getFieldOrder();
+    const idx = order.indexOf(current);
+    if (idx === -1) return;
+    if (idx === order.length - 1){
+      handleSave();
+    }else{
+      const next = order[idx + 1];
+      next.focus();
+      if (typeof next.select === "function" && next.tagName === "INPUT") next.select();
+    }
+  }
+
+  [fieldName, fieldCategory, fieldCategoryNew, fieldKeywords, fieldPrice].forEach(f => {
+    f.addEventListener("keydown", (e) => {
+      if (e.key === "Enter"){
+        e.preventDefault();
+        focusNext(f);
+      }
+    });
+  });
+
+  // ---------- Inicio ----------
+
+  loadProducts();
+  updateAddBtnVisibility();
+
+})();
+</script>
+</body>
+</html>
