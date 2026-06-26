@@ -3,16 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Precios</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#000000;
     --fg:#ffffff;
     --muted:#8a8a8a;
     --surface:#0d0d0d;
+    --surface-2:#141414;
     --border:#1f1f1f;
     --border-strong:#3a3a3a;
     --ease-spring: cubic-bezier(.34,1.56,.64,1);
@@ -57,7 +63,11 @@
     background:var(--bg);
   }
 
-  #searchWrap{ width:100%; max-width:560px; }
+  #searchWrap{
+    position:relative;
+    width:100%;
+    max-width:560px;
+  }
 
   #searchInput{
     width:100%;
@@ -68,11 +78,38 @@
     font-size:1.05rem;
     padding:17px 22px;
     border-radius:999px;
-    transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    transition:border-color .2s ease, box-shadow .2s ease, background .2s ease, padding-right .15s ease;
   }
 
+  #searchInput.hasClear{ padding-right:52px; }
   #searchInput::placeholder{ color:var(--muted); text-align:center; }
   #searchInput:focus{ border-color:var(--border-strong); box-shadow:0 0 0 5px rgba(255,255,255,0.05); }
+
+  #clearSearchBtn{
+    position:absolute;
+    top:50%;
+    right:8px;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:none;
+    background:#1c1c1c;
+    color:var(--fg);
+    font-size:1.25rem;
+    line-height:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    opacity:0;
+    pointer-events:none;
+    transform:translateY(-50%) scale(.6);
+    transition:opacity .15s ease, transform .2s var(--ease-spring), background .15s ease;
+  }
+
+  #clearSearchBtn.show{ opacity:1; pointer-events:auto; transform:translateY(-50%) scale(1); }
+  #clearSearchBtn:hover{ background:#2a2a2a; }
+  #clearSearchBtn:active{ transform:translateY(-50%) scale(.85); }
 
   /* ---------- Contenido / resultados ---------- */
 
@@ -101,23 +138,25 @@
     background:var(--surface);
     border:1px solid var(--border);
     border-radius:14px;
-    padding:15px 18px;
+    overflow:hidden;
+    transition:border-color .15s ease;
+    animation:itemIn .35s var(--ease-spring) both;
+  }
+
+  .resultItem:hover, .resultItem.expanded{ border-color:var(--border-strong); }
+
+  .resultRow{
     display:flex;
     justify-content:space-between;
     align-items:center;
     gap:14px;
+    padding:15px 18px;
     cursor:pointer;
-    transition:border-color .15s ease, background .15s ease, transform .15s ease;
-    animation:itemIn .35s var(--ease-spring) both;
+    transition:background .15s ease;
   }
 
-  .resultItem:hover{
-    border-color:var(--border-strong);
-    background:#111111;
-    transform:translateY(-1px);
-  }
-
-  .resultItem:active{ transform:translateY(0) scale(.99); }
+  .resultRow:hover{ background:#111111; }
+  .resultRow:active{ background:#161616; }
 
   .resultInfo{
     display:flex;
@@ -152,13 +191,37 @@
   }
 
   .currency{
-    font-family:'Instrument Serif', serif;
-    font-style:italic;
-    font-weight:400;
+    font-weight:500;
     font-size:0.5em;
-    opacity:0.75;
+    opacity:0.65;
     margin-right:3px;
   }
+
+  .editReveal{
+    max-height:0;
+    opacity:0;
+    overflow:hidden;
+    transition:max-height .25s ease, opacity .2s ease;
+  }
+
+  .resultItem.expanded .editReveal{ max-height:64px; opacity:1; }
+
+  .editBtn{
+    display:block;
+    width:100%;
+    padding:13px 0;
+    border:none;
+    border-top:1px solid var(--border);
+    background:transparent;
+    color:var(--fg);
+    font-size:0.92rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+
+  .editBtn:hover{ background:#161616; }
+  .editBtn:active{ background:#1c1c1c; }
 
   .empty{
     color:var(--muted);
@@ -193,7 +256,6 @@
   }
 
   #addBtn span{ margin-top:-3px; }
-
   #addBtn:hover{ transform:translateX(-50%) scale(1.07); box-shadow:0 8px 24px rgba(255,255,255,0.24); }
   #addBtn:active{ transform:translateX(-50%) scale(0.92); }
 
@@ -203,7 +265,7 @@
     pointer-events:none;
   }
 
-  /* ---------- Modal ---------- */
+  /* ---------- Modal: producto ---------- */
 
   #modalOverlay{
     position:fixed;
@@ -253,7 +315,7 @@
     letter-spacing:.01em;
   }
 
-  #modal input, #modal select{
+  #modal input{
     background:#000000;
     border:1px solid var(--border);
     color:var(--fg);
@@ -265,21 +327,80 @@
   }
 
   #modal input::placeholder{ color:#555555; }
-  #modal input:focus, #modal select:focus{ border-color:var(--border-strong); }
+  #modal input:focus{ border-color:var(--border-strong); }
 
-  #modal select{
-    appearance:none;
-    -webkit-appearance:none;
-    -moz-appearance:none;
+  /* ---------- Desplegable de categoría (estilo propio) ---------- */
+
+  .customSelect{ position:relative; width:100%; }
+
+  .customSelectTrigger{
+    width:100%;
+    background:#000000;
+    border:1px solid var(--border);
+    color:var(--fg);
+    padding:13px 16px;
+    border-radius:10px;
+    font-size:0.95rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
     cursor:pointer;
-    padding-right:42px;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-    background-repeat:no-repeat;
-    background-position:right 14px center;
-    background-size:16px;
+    text-align:left;
+    transition:border-color .15s ease;
   }
 
-  #modal select option{ background:#0d0d0d; color:#fff; }
+  .customSelectTrigger:hover, .customSelectTrigger.open{ border-color:var(--border-strong); }
+  .customSelectTrigger span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .customSelectTrigger .chevron{
+    width:16px; height:16px; flex-shrink:0;
+    color:var(--muted);
+    transition:transform .2s ease;
+  }
+
+  .customSelectTrigger.open .chevron{ transform:rotate(180deg); }
+
+  .customSelectList{
+    position:absolute;
+    top:calc(100% + 8px);
+    left:0; right:0;
+    background:var(--surface-2);
+    border:1px solid var(--border-strong);
+    border-radius:12px;
+    padding:6px;
+    max-height:230px;
+    overflow-y:auto;
+    z-index:5;
+    box-shadow:0 14px 34px rgba(0,0,0,0.55);
+    opacity:0;
+    visibility:hidden;
+    transform:translateY(-6px) scale(.98);
+    transform-origin:top center;
+    transition:opacity .15s ease, transform .18s var(--ease-spring), visibility .15s ease;
+  }
+
+  .customSelectList.open{ opacity:1; visibility:visible; transform:translateY(0) scale(1); }
+
+  .customSelectOption{
+    padding:11px 13px;
+    border-radius:8px;
+    font-size:0.92rem;
+    cursor:pointer;
+    transition:background .12s ease;
+  }
+
+  .customSelectOption.newOption{
+    color:var(--muted);
+    border-top:1px solid var(--border);
+    margin-top:4px;
+    padding-top:13px;
+  }
+
+  .customSelectOption:hover, .customSelectOption.highlighted{ background:#222222; }
+  .customSelectOption.newOption:hover, .customSelectOption.newOption.highlighted{ background:#222222; color:var(--fg); }
+
+  .customSelectOption.selected{ background:var(--fg); color:var(--bg); font-weight:600; }
 
   @keyframes fieldPop{
     from{ opacity:0; transform:translateY(-6px); }
@@ -313,13 +434,13 @@
   .modalActions button:hover{ background:#1a1a1a; border-color:var(--border-strong); }
   .modalActions button:active{ transform:scale(.97); }
 
-  #saveBtn{
+  #saveBtn, #confirmDeleteBtn{
     background:var(--fg);
     color:var(--bg);
     border:none;
   }
 
-  #saveBtn:hover{ background:#e2e2e2; }
+  #saveBtn:hover, #confirmDeleteBtn:hover{ background:#e2e2e2; }
 
   #deleteBtn{
     align-self:center;
@@ -334,6 +455,50 @@
   }
 
   #deleteBtn:hover{ color:var(--fg); background:none; }
+
+  /* ---------- Modal: confirmar borrado ---------- */
+
+  #confirmOverlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.78);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:60;
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:opacity .2s ease, visibility .2s ease;
+  }
+
+  #confirmOverlay.open{ opacity:1; visibility:visible; pointer-events:auto; }
+
+  #confirmModal{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:26px;
+    width:100%;
+    max-width:340px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    text-align:center;
+    transform:scale(.9) translateY(10px);
+    opacity:0;
+    transition:transform .3s var(--ease-spring), opacity .2s ease;
+  }
+
+  #confirmOverlay.open #confirmModal{ transform:scale(1) translateY(0); opacity:1; }
+
+  #confirmText{
+    margin:0;
+    font-size:1rem;
+    line-height:1.45;
+    word-break:break-word;
+  }
 
   @media (max-width:480px){
     #searchHeader{ padding:calc(18px + env(safe-area-inset-top)) 16px 12px; }
@@ -352,6 +517,7 @@
 <header id="searchHeader">
   <div id="searchWrap">
     <input id="searchInput" type="text" placeholder="Buscar" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="clearSearchBtn" type="button" aria-label="Borrar búsqueda">&times;</button>
   </div>
 </header>
 
@@ -369,8 +535,14 @@
     </div>
 
     <div class="field">
-      <label for="fieldCategory">Categoría</label>
-      <select id="fieldCategory"></select>
+      <label for="categoryTrigger">Categoría</label>
+      <div class="customSelect" id="categorySelect">
+        <button type="button" class="customSelectTrigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
+          <span id="categoryValueLabel">Sin categoría</span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="customSelectList" id="categoryOptionsList" role="listbox" tabindex="-1"></div>
+      </div>
     </div>
 
     <div class="field newCategoryField" id="newCategoryField">
@@ -397,22 +569,82 @@
   </div>
 </div>
 
+<div id="confirmOverlay">
+  <div id="confirmModal">
+    <p id="confirmText">¿Eliminar este producto?</p>
+    <div class="modalActions">
+      <button id="confirmCancelBtn" type="button">Cancelar</button>
+      <button id="confirmDeleteBtn" type="button">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     FIREBASE (Cloud Firestore)
+     Estas dos librerías son la versión "compat" del SDK de Firebase,
+     pensada para usarse con <script> normales (sin necesitar un
+     bundler), igual que el resto de esta página de un solo archivo.
+============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // ============================================================
+  // 🔑 PEGA AQUÍ TUS CLAVES DE FIREBASE 🔑
+  // Las encuentras en: Firebase Console > Configuración del proyecto
+  // > Tus apps > (ícono de la app web) > "Configuración del SDK".
+  //
+  // Mientras estos valores sigan siendo "...", la página funciona
+  // 100% local (como hasta ahora, con localStorage) sin tocar la nube.
+  // En cuanto pongas tus claves reales, se conecta sola a Firestore.
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAqo_o5VMapMOjlAH0yHKsQkrc3OH9LEM",
+    authDomain: "venpaspruebas.firebaseapp.com",
+    databaseURL: "https://venpaspruebas-default-rtdb.firebaseio.com",
+    projectId: "venpaspruebas",
+    storageBucket: "venpaspruebas.firebasestorage.app",
+    messagingSenderId: "288965411473",
+    appId: "1:288965411473:web:0d2458c74f3345530cf530",
+    measurementId: "G-5GTQW95WJ5"
+  };
+</script>
+
 <script>
 (function(){
   "use strict";
 
   const STORAGE_KEY = "preciosApp.productos.v1";
+  const FIRESTORE_COLLECTION = "productos";
 
   let products = [];
   let editingId = null;
+  let pendingDeleteId = null;
   let searchFocused = false;
+  let expandedItem = null;
+
+  let selectedCategory = "";
+  let categoryOptionsData = [];
+  let categoryOpen = false;
+  let highlightedIndex = -1;
+
+  // Estado de la sincronización con Firestore (ver sección al final del archivo)
+  let firestoreReady = false;
+  let db = null;
+  let productsCollection = null;
+  let migrationChecked = false;
 
   const searchInput = document.getElementById("searchInput");
+  const clearSearchBtn = document.getElementById("clearSearchBtn");
   const resultsEl = document.getElementById("results");
   const addBtn = document.getElementById("addBtn");
+
   const modalOverlay = document.getElementById("modalOverlay");
   const fieldName = document.getElementById("fieldName");
-  const fieldCategory = document.getElementById("fieldCategory");
+  const categorySelectEl = document.getElementById("categorySelect");
+  const categoryTrigger = document.getElementById("categoryTrigger");
+  const categoryValueLabel = document.getElementById("categoryValueLabel");
+  const categoryOptionsListEl = document.getElementById("categoryOptionsList");
   const newCategoryField = document.getElementById("newCategoryField");
   const fieldCategoryNew = document.getElementById("fieldCategoryNew");
   const fieldKeywords = document.getElementById("fieldKeywords");
@@ -421,7 +653,12 @@
   const cancelBtn = document.getElementById("cancelBtn");
   const saveBtn = document.getElementById("saveBtn");
 
-  // ---------- Persistencia ----------
+  const confirmOverlay = document.getElementById("confirmOverlay");
+  const confirmText = document.getElementById("confirmText");
+  const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+  const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+  // ---------- Persistencia local (caché para búsqueda instantánea) ----------
 
   function loadProducts(){
     try{
@@ -450,14 +687,21 @@
   function formatPrice(value){
     let num = Number(value);
     if (!isFinite(num)) num = 0;
-    num = Math.round((num + Number.EPSILON) * 100) / 100;
-    const parts = num.toString().split(".");
-    let intPart = parts[0];
-    const decPart = parts[1];
-    const negative = intPart.startsWith("-");
-    if (negative) intPart = intPart.slice(1);
+    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+    const isInteger = Number.isInteger(rounded);
+    let intPart, decPart;
+    if (isInteger){
+      intPart = String(Math.abs(rounded));
+      decPart = "";
+    }else{
+      const fixed = Math.abs(rounded).toFixed(2);
+      const parts = fixed.split(".");
+      intPart = parts[0];
+      decPart = parts[1];
+    }
     intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    return (negative ? "-" : "") + intPart + (decPart ? "." + decPart : "");
+    const sign = rounded < 0 ? "-" : "";
+    return sign + intPart + (decPart ? "." + decPart : "");
   }
 
   // ---------- Búsqueda tolerante a errores ----------
@@ -558,10 +802,51 @@
     return scored.map(s => s.product);
   }
 
+  // ---------- Tarjetas expandibles ----------
+
+  function collapseExpanded(){
+    if (expandedItem){
+      expandedItem.classList.remove("expanded");
+      const btn = expandedItem.querySelector(".editBtn");
+      if (btn) btn.tabIndex = -1;
+      expandedItem = null;
+    }
+  }
+
+  function expandItem(item){
+    if (expandedItem === item) return;
+    collapseExpanded();
+    item.classList.add("expanded");
+    const btn = item.querySelector(".editBtn");
+    if (btn) btn.tabIndex = 0;
+    expandedItem = item;
+  }
+
+  function toggleItem(item){
+    if (item.classList.contains("expanded")){
+      collapseExpanded();
+    }else{
+      expandItem(item);
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    if (expandedItem && !expandedItem.contains(e.target)){
+      collapseExpanded();
+    }
+  });
+
   // ---------- Render resultados ----------
+
+  function clearResults(){
+    resultsEl.innerHTML = "";
+    expandedItem = null;
+  }
 
   function renderResults(list){
     resultsEl.innerHTML = "";
+    expandedItem = null;
+
     if (list.length === 0){
       const empty = document.createElement("div");
       empty.className = "empty";
@@ -569,12 +854,16 @@
       resultsEl.appendChild(empty);
       return;
     }
+
     list.forEach((p, i) => {
       const item = document.createElement("div");
       item.className = "resultItem";
-      item.tabIndex = 0;
-      item.setAttribute("role", "button");
       item.style.animationDelay = Math.min(i * 0.04, 0.3) + "s";
+
+      const row = document.createElement("div");
+      row.className = "resultRow";
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
 
       const info = document.createElement("div");
       info.className = "resultInfo";
@@ -599,18 +888,33 @@
       price.appendChild(currency);
       price.appendChild(document.createTextNode(formatPrice(p.price)));
 
-      item.appendChild(info);
-      item.appendChild(price);
+      row.appendChild(info);
+      row.appendChild(price);
 
-      const openThis = () => openEditModal(p.id);
-      item.addEventListener("click", openThis);
-      item.addEventListener("keydown", (e) => {
+      row.addEventListener("click", () => toggleItem(item));
+      row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " "){
           e.preventDefault();
-          openThis();
+          toggleItem(item);
         }
       });
 
+      const reveal = document.createElement("div");
+      reveal.className = "editReveal";
+
+      const editBtnEl = document.createElement("button");
+      editBtnEl.type = "button";
+      editBtnEl.className = "editBtn";
+      editBtnEl.textContent = "Editar";
+      editBtnEl.tabIndex = -1;
+      editBtnEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditModal(p.id);
+      });
+      reveal.appendChild(editBtnEl);
+
+      item.appendChild(row);
+      item.appendChild(reveal);
       resultsEl.appendChild(item);
     });
   }
@@ -620,15 +924,21 @@
     if (q.trim()){
       renderResults(searchProducts(q));
     }else{
-      resultsEl.innerHTML = "";
+      clearResults();
     }
   }
 
-  // ---------- Visibilidad del botón + ----------
+  // ---------- Visibilidad botón + / botón borrar búsqueda ----------
 
   function updateAddBtnVisibility(){
     const shouldHide = searchFocused || searchInput.value.trim() !== "";
     addBtn.classList.toggle("hidden", shouldHide);
+  }
+
+  function updateClearButton(){
+    const hasText = searchInput.value.length > 0;
+    clearSearchBtn.classList.toggle("show", hasText);
+    searchInput.classList.toggle("hasClear", hasText);
   }
 
   searchInput.addEventListener("input", () => {
@@ -636,9 +946,10 @@
     if (q.trim()){
       renderResults(searchProducts(q));
     }else{
-      resultsEl.innerHTML = "";
+      clearResults();
     }
     updateAddBtnVisibility();
+    updateClearButton();
   });
 
   searchInput.addEventListener("focus", () => {
@@ -651,35 +962,126 @@
     updateAddBtnVisibility();
   });
 
-  // ---------- Categorías (desplegable) ----------
+  clearSearchBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  clearSearchBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    clearResults();
+    updateClearButton();
+    updateAddBtnVisibility();
+    searchInput.focus();
+  });
+
+  // ---------- Categorías (desplegable propio) ----------
 
   function getCategories(){
     return Array.from(new Set(products.map(p => p.category).filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, "es"));
   }
 
-  function buildCategoryOptions(selected){
-    fieldCategory.innerHTML = "";
-
-    const noneOpt = document.createElement("option");
-    noneOpt.value = "";
-    noneOpt.textContent = "Sin categoría";
-    fieldCategory.appendChild(noneOpt);
-
-    getCategories().forEach(cat => {
-      const opt = document.createElement("option");
-      opt.value = cat;
-      opt.textContent = cat;
-      fieldCategory.appendChild(opt);
+  function renderCategoryOptionsList(){
+    categoryOptionsListEl.innerHTML = "";
+    categoryOptionsData.forEach((opt, idx) => {
+      const div = document.createElement("div");
+      let cls = "customSelectOption";
+      if (opt.value === selectedCategory) cls += " selected";
+      if (opt.isNew) cls += " newOption";
+      div.className = cls;
+      div.setAttribute("role", "option");
+      div.textContent = opt.label;
+      div.addEventListener("click", () => selectCategoryOption(idx));
+      categoryOptionsListEl.appendChild(div);
     });
-
-    const newOpt = document.createElement("option");
-    newOpt.value = "__new__";
-    newOpt.textContent = "+ Nueva categoría";
-    fieldCategory.appendChild(newOpt);
-
-    fieldCategory.value = selected || "";
   }
+
+  function buildCategoryOptions(selected){
+    const cats = getCategories();
+    categoryOptionsData = [{ value: "", label: "Sin categoría" }]
+      .concat(cats.map(c => ({ value: c, label: c })))
+      .concat([{ value: "__new__", label: "+ Nueva categoría", isNew: true }]);
+
+    selectedCategory = selected || "";
+    const match = categoryOptionsData.find(o => o.value === selectedCategory);
+    categoryValueLabel.textContent = match ? match.label : "Sin categoría";
+    renderCategoryOptionsList();
+    closeCategoryList();
+  }
+
+  function applyHighlight(){
+    const opts = categoryOptionsListEl.querySelectorAll(".customSelectOption");
+    opts.forEach((el, i) => el.classList.toggle("highlighted", i === highlightedIndex));
+    const hl = opts[highlightedIndex];
+    if (hl) hl.scrollIntoView({ block: "nearest" });
+  }
+
+  function openCategoryList(){
+    categoryOpen = true;
+    categoryOptionsListEl.classList.add("open");
+    categoryTrigger.classList.add("open");
+    categoryTrigger.setAttribute("aria-expanded", "true");
+    highlightedIndex = categoryOptionsData.findIndex(o => o.value === selectedCategory);
+    if (highlightedIndex < 0) highlightedIndex = 0;
+    applyHighlight();
+  }
+
+  function closeCategoryList(){
+    categoryOpen = false;
+    categoryOptionsListEl.classList.remove("open");
+    categoryTrigger.classList.remove("open");
+    categoryTrigger.setAttribute("aria-expanded", "false");
+  }
+
+  function selectCategoryOption(idx){
+    const opt = categoryOptionsData[idx];
+    if (!opt) return;
+    selectedCategory = opt.value;
+    categoryValueLabel.textContent = opt.label;
+    renderCategoryOptionsList();
+    closeCategoryList();
+    if (selectedCategory === "__new__"){
+      showNewCategoryField();
+    }else{
+      hideNewCategoryField();
+      fieldKeywords.focus();
+    }
+  }
+
+  categoryTrigger.addEventListener("click", () => {
+    if (categoryOpen) closeCategoryList(); else openCategoryList();
+  });
+
+  categoryTrigger.addEventListener("keydown", (e) => {
+    if (!categoryOpen){
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp"){
+        e.preventDefault();
+        openCategoryList();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown"){
+      e.preventDefault();
+      highlightedIndex = Math.min(highlightedIndex + 1, categoryOptionsData.length - 1);
+      applyHighlight();
+    }else if (e.key === "ArrowUp"){
+      e.preventDefault();
+      highlightedIndex = Math.max(highlightedIndex - 1, 0);
+      applyHighlight();
+    }else if (e.key === "Enter"){
+      e.preventDefault();
+      selectCategoryOption(highlightedIndex);
+    }else if (e.key === "Escape"){
+      e.preventDefault();
+      e.stopPropagation();
+      closeCategoryList();
+    }else if (e.key === "Tab"){
+      closeCategoryList();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (categoryOpen && !categorySelectEl.contains(e.target)){
+      closeCategoryList();
+    }
+  });
 
   function showNewCategoryField(){
     newCategoryField.style.display = "flex";
@@ -695,15 +1097,7 @@
     fieldCategoryNew.value = "";
   }
 
-  fieldCategory.addEventListener("change", () => {
-    if (fieldCategory.value === "__new__"){
-      showNewCategoryField();
-    }else{
-      hideNewCategoryField();
-    }
-  });
-
-  // ---------- Modal ----------
+  // ---------- Modal: agregar / editar ----------
 
   function clearFieldErrors(){
     [fieldName, fieldPrice].forEach(f => f.style.borderColor = "");
@@ -739,15 +1133,16 @@
 
   function closeModal(){
     modalOverlay.classList.remove("open");
+    closeCategoryList();
   }
 
   function handleSave(){
     const name = fieldName.value.trim();
     const keywords = fieldKeywords.value.trim();
     const priceVal = parseFloat(fieldPrice.value);
-    let category = fieldCategory.value === "__new__"
+    const category = selectedCategory === "__new__"
       ? fieldCategoryNew.value.trim()
-      : fieldCategory.value;
+      : selectedCategory;
 
     clearFieldErrors();
 
@@ -762,42 +1157,106 @@
       return;
     }
 
-    if (editingId){
-      const p = products.find(x => x.id === editingId);
-      if (p){
-        p.name = name;
-        p.category = category;
-        p.keywords = keywords;
-        p.price = priceVal;
+    const data = { name, category, keywords, price: priceVal };
+
+    if (firestoreReady){
+      // Con Firestore activo, el listener onSnapshot (ver abajo) se encarga
+      // de reflejar el cambio en pantalla y en la copia local en cuanto
+      // Firestore confirme el cambio (incluso sin conexión, gracias a su
+      // caché propia, esto suele sentirse instantáneo).
+      if (editingId){
+        productsCollection.doc(editingId).update(data).catch((err) => {
+          console.warn("Error al actualizar el producto en Firestore:", err);
+        });
+      }else{
+        productsCollection.add(data).catch((err) => {
+          console.warn("Error al agregar el producto en Firestore:", err);
+        });
       }
     }else{
-      products.push({ id: genId(), name, category, keywords, price: priceVal });
+      // Sin Firestore configurado: el comportamiento es 100% local, igual que antes.
+      if (editingId){
+        const p = products.find(x => x.id === editingId);
+        if (p){
+          p.name = name;
+          p.category = category;
+          p.keywords = keywords;
+          p.price = priceVal;
+        }
+      }else{
+        products.push({ id: genId(), name, category, keywords, price: priceVal });
+      }
+      saveProducts();
+      refreshView();
     }
 
-    saveProducts();
     closeModal();
-    refreshView();
-  }
-
-  function handleDelete(){
-    if (!editingId) return;
-    products = products.filter(x => x.id !== editingId);
-    saveProducts();
-    closeModal();
-    refreshView();
   }
 
   addBtn.addEventListener("click", openAddModal);
   cancelBtn.addEventListener("click", closeModal);
   saveBtn.addEventListener("click", handleSave);
-  deleteBtn.addEventListener("click", handleDelete);
 
   modalOverlay.addEventListener("click", (e) => {
     if (e.target === modalOverlay) closeModal();
   });
 
+  // ---------- Confirmación de borrado ----------
+
+  function openConfirmDelete(id){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    pendingDeleteId = id;
+    confirmText.textContent = "¿Eliminar \"" + p.name + "\"?";
+    confirmOverlay.classList.add("open");
+  }
+
+  function closeConfirmDelete(){
+    confirmOverlay.classList.remove("open");
+    pendingDeleteId = null;
+  }
+
+  function performDelete(){
+    if (!pendingDeleteId) return;
+    const idToDelete = pendingDeleteId;
+
+    if (firestoreReady){
+      productsCollection.doc(idToDelete).delete().catch((err) => {
+        console.warn("Error al eliminar el producto en Firestore:", err);
+      });
+    }else{
+      products = products.filter(x => x.id !== idToDelete);
+      saveProducts();
+      refreshView();
+    }
+
+    closeConfirmDelete();
+    closeModal();
+  }
+
+  deleteBtn.addEventListener("click", () => {
+    if (editingId) openConfirmDelete(editingId);
+  });
+
+  confirmCancelBtn.addEventListener("click", closeConfirmDelete);
+  confirmDeleteBtn.addEventListener("click", performDelete);
+  confirmOverlay.addEventListener("click", (e) => {
+    if (e.target === confirmOverlay) closeConfirmDelete();
+  });
+
+  // ---------- Tecla Escape (prioridad) ----------
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && modalOverlay.classList.contains("open")){
+    if (e.key !== "Escape") return;
+    if (confirmOverlay.classList.contains("open")){
+      closeConfirmDelete();
+      return;
+    }
+    if (categoryOpen){
+      closeCategoryList();
+      return;
+    }
+    if (modalOverlay.classList.contains("open")){
       closeModal();
     }
   });
@@ -805,8 +1264,8 @@
   // ---------- Enter -> siguiente campo ----------
 
   function getFieldOrder(){
-    const order = [fieldName, fieldCategory];
-    if (fieldCategory.value === "__new__"){
+    const order = [fieldName, categoryTrigger];
+    if (selectedCategory === "__new__"){
       order.push(fieldCategoryNew);
     }
     order.push(fieldKeywords, fieldPrice);
@@ -822,11 +1281,11 @@
     }else{
       const next = order[idx + 1];
       next.focus();
-      if (typeof next.select === "function" && next.tagName === "INPUT") next.select();
+      if (next.tagName === "INPUT" && typeof next.select === "function") next.select();
     }
   }
 
-  [fieldName, fieldCategory, fieldCategoryNew, fieldKeywords, fieldPrice].forEach(f => {
+  [fieldName, fieldCategoryNew, fieldKeywords, fieldPrice].forEach(f => {
     f.addEventListener("keydown", (e) => {
       if (e.key === "Enter"){
         e.preventDefault();
@@ -835,10 +1294,117 @@
     });
   });
 
+  // ====================================================================
+  // ---------- Firebase / Firestore: sincronización en la nube ----------
+  // ====================================================================
+  //
+  // Idea general:
+  // 1) Al entrar, ya se ve algo de inmediato porque `loadProducts()` lee
+  //    la última copia guardada en localStorage (búsqueda instantánea).
+  // 2) En paralelo, si configuraste tus claves de Firebase, nos conectamos
+  //    a Firestore y nos "suscribimos" a la colección con onSnapshot: esto
+  //    no es una descarga única, sino que se queda escuchando y avisa cada
+  //    vez que algo cambia (incluso si lo cambiaste desde otro dispositivo).
+  // 3) Cada vez que llega información nueva de Firestore, se reemplaza la
+  //    lista en memoria y se vuelve a guardar en localStorage, así esa
+  //    copia local siempre queda al día para la próxima vez que entres
+  //    (incluso con mala conexión).
+  // 4) Si es la primera vez que conectas Firestore y ya tenías productos
+  //    guardados solo de forma local, se suben automáticamente una vez
+  //    para no perderlos.
+  // 5) Si no configuraste tus claves (o Firebase no carga por alguna
+  //    razón), la página sigue funcionando exactamente igual que antes,
+  //    100% local.
+
+  function initFirebase(){
+    try{
+      if (typeof firebase === "undefined"){
+        return; // Las librerías de Firebase no cargaron; modo local.
+      }
+      if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "..."){
+        return; // Todavía no se pegaron las claves; modo local.
+      }
+
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+
+      // Permite que la app funcione sin internet: Firestore guarda una
+      // copia en IndexedDB y sincroniza solo cuando vuelve la conexión.
+      db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+        console.warn("Persistencia offline de Firestore no disponible:", err && err.code);
+      });
+
+      productsCollection = db.collection(FIRESTORE_COLLECTION);
+      firestoreReady = true;
+      subscribeToProducts();
+    }catch(e){
+      console.warn("No se pudo inicializar Firebase; la app sigue funcionando en modo local.", e);
+      firestoreReady = false;
+    }
+  }
+
+  function subscribeToProducts(){
+    if (!productsCollection) return;
+
+    productsCollection.onSnapshot((snapshot) => {
+      const remote = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        remote.push({
+          id: docSnap.id,
+          name: d.name || "",
+          category: d.category || "",
+          keywords: d.keywords || "",
+          price: typeof d.price === "number" ? d.price : (parseFloat(d.price) || 0)
+        });
+      });
+
+      // Migración única: si Firestore está vacío pero ya teníamos productos
+      // guardados localmente, los subimos para no perderlos.
+      if (!migrationChecked){
+        migrationChecked = true;
+        if (remote.length === 0 && products.length > 0){
+          migrateLocalProductsToFirestore(products);
+          return; // este mismo listener se volverá a disparar al terminar
+        }
+      }
+
+      products = remote;
+      saveProducts();
+      refreshView();
+
+      // Si el modal de agregar/editar está abierto, refresca el desplegable
+      // de categorías por si llegaron categorías nuevas desde otro dispositivo.
+      if (modalOverlay.classList.contains("open")){
+        buildCategoryOptions(selectedCategory);
+      }
+    }, (error) => {
+      console.warn("No se pudo sincronizar con Firestore; se sigue usando la copia local.", error);
+    });
+  }
+
+  function migrateLocalProductsToFirestore(localProducts){
+    const batch = db.batch();
+    localProducts.forEach((p) => {
+      const ref = productsCollection.doc();
+      batch.set(ref, {
+        name: p.name || "",
+        category: p.category || "",
+        keywords: p.keywords || "",
+        price: typeof p.price === "number" ? p.price : (parseFloat(p.price) || 0)
+      });
+    });
+    batch.commit().catch((err) => {
+      console.warn("No se pudieron migrar los productos locales a Firestore.", err);
+    });
+  }
+
   // ---------- Inicio ----------
 
-  loadProducts();
+  loadProducts();           // copia local: lista para buscar al instante
   updateAddBtnVisibility();
+  updateClearButton();
+  initFirebase();            // si hay claves configuradas, sincroniza con Firestore
 
 })();
 </script>
