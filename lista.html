@@ -329,37 +329,9 @@
   #modal input::placeholder{ color:#555555; }
   #modal input:focus{ border-color:var(--border-strong); }
 
-  /* ---------- Desplegable de categoría (estilo propio) ---------- */
+  /* ---------- Categoría: buscador / autocompletar ---------- */
 
   .customSelect{ position:relative; width:100%; }
-
-  .customSelectTrigger{
-    width:100%;
-    background:#000000;
-    border:1px solid var(--border);
-    color:var(--fg);
-    padding:13px 16px;
-    border-radius:10px;
-    font-size:0.95rem;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:10px;
-    cursor:pointer;
-    text-align:left;
-    transition:border-color .15s ease;
-  }
-
-  .customSelectTrigger:hover, .customSelectTrigger.open{ border-color:var(--border-strong); }
-  .customSelectTrigger span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-  .customSelectTrigger .chevron{
-    width:16px; height:16px; flex-shrink:0;
-    color:var(--muted);
-    transition:transform .2s ease;
-  }
-
-  .customSelectTrigger.open .chevron{ transform:rotate(180deg); }
 
   .customSelectList{
     position:absolute;
@@ -390,25 +362,7 @@
     transition:background .12s ease;
   }
 
-  .customSelectOption.newOption{
-    color:var(--muted);
-    border-top:1px solid var(--border);
-    margin-top:4px;
-    padding-top:13px;
-  }
-
   .customSelectOption:hover, .customSelectOption.highlighted{ background:#222222; }
-  .customSelectOption.newOption:hover, .customSelectOption.newOption.highlighted{ background:#222222; color:var(--fg); }
-
-  .customSelectOption.selected{ background:var(--fg); color:var(--bg); font-weight:600; }
-
-  @keyframes fieldPop{
-    from{ opacity:0; transform:translateY(-6px); }
-    to{ opacity:1; transform:translateY(0); }
-  }
-
-  .newCategoryField{ display:none; }
-  .field-pop{ animation:fieldPop .25s ease; }
 
   .modalActions{
     display:flex;
@@ -500,6 +454,108 @@
     word-break:break-word;
   }
 
+  /* ---------- Celebración al agregar un producto nuevo ---------- */
+
+  #celebrateOverlay{
+    position:fixed;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    pointer-events:none;
+    z-index:90;
+    opacity:0;
+  }
+
+  #celebrateOverlay.show{ animation:celebrateFade 1.4s ease forwards; }
+
+  @keyframes celebrateFade{
+    0%{ opacity:0; }
+    10%{ opacity:1; }
+    78%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+
+  #celebrateBadge{
+    position:relative;
+    width:86px;
+    height:86px;
+    border-radius:50%;
+    background:var(--fg);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transform:scale(0);
+  }
+
+  #celebrateOverlay.show #celebrateBadge{
+    animation:badgePop .6s var(--ease-spring) forwards;
+  }
+
+  @keyframes badgePop{
+    0%{ transform:scale(0) rotate(-20deg); }
+    55%{ transform:scale(1.18) rotate(6deg); }
+    100%{ transform:scale(1) rotate(0deg); }
+  }
+
+  .checkIcon{
+    width:42px;
+    height:42px;
+    stroke:var(--bg);
+    fill:none;
+    stroke-width:3;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    stroke-dasharray:30;
+    stroke-dashoffset:30;
+  }
+
+  #celebrateOverlay.show .checkIcon{
+    animation:drawCheck .4s ease forwards .22s;
+  }
+
+  @keyframes drawCheck{ to{ stroke-dashoffset:0; } }
+
+  .ray{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--fg);
+    transform:translate(-50%,-50%) rotate(var(--angle)) translateY(0) scale(0);
+    opacity:0;
+  }
+
+  #celebrateOverlay.show .ray{
+    animation:rayBurst .65s ease forwards .08s;
+  }
+
+  @keyframes rayBurst{
+    0%{ transform:translate(-50%,-50%) rotate(var(--angle)) translateY(0) scale(0); opacity:0; }
+    35%{ opacity:1; transform:translate(-50%,-50%) rotate(var(--angle)) translateY(-52px) scale(1.5); }
+    100%{ opacity:0; transform:translate(-50%,-50%) rotate(var(--angle)) translateY(-70px) scale(.4); }
+  }
+
+  #celebrateLabel{
+    color:var(--fg);
+    font-weight:600;
+    font-size:1.05rem;
+    text-align:center;
+    max-width:80vw;
+    opacity:0;
+    transform:translateY(6px);
+  }
+
+  #celebrateOverlay.show #celebrateLabel{
+    animation:labelIn .4s ease forwards .35s;
+  }
+
+  @keyframes labelIn{ to{ opacity:1; transform:translateY(0); } }
+
   @media (max-width:480px){
     #searchHeader{ padding:calc(18px + env(safe-area-inset-top)) 16px 12px; }
     #app{ padding:90px 16px 140px; }
@@ -535,19 +591,11 @@
     </div>
 
     <div class="field">
-      <label for="categoryTrigger">Categoría</label>
+      <label for="fieldCategory">Categoría</label>
       <div class="customSelect" id="categorySelect">
-        <button type="button" class="customSelectTrigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
-          <span id="categoryValueLabel">Sin categoría</span>
-          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="customSelectList" id="categoryOptionsList" role="listbox" tabindex="-1"></div>
+        <input id="fieldCategory" type="text" autocomplete="off" placeholder="Buscar o escribir categoría" enterkeyhint="next">
+        <div class="customSelectList" id="categoryOptionsList" role="listbox"></div>
       </div>
-    </div>
-
-    <div class="field newCategoryField" id="newCategoryField">
-      <label for="fieldCategoryNew">Nueva categoría</label>
-      <input id="fieldCategoryNew" type="text" autocomplete="off" enterkeyhint="next">
     </div>
 
     <div class="field">
@@ -557,7 +605,7 @@
 
     <div class="field">
       <label for="fieldPrice">Precio</label>
-      <input id="fieldPrice" type="number" step="0.01" min="0" inputmode="decimal" enterkeyhint="done">
+      <input id="fieldPrice" type="number" step="0.01" min="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
     </div>
 
     <div class="modalActions">
@@ -577,6 +625,21 @@
       <button id="confirmDeleteBtn" type="button">Eliminar</button>
     </div>
   </div>
+</div>
+
+<div id="celebrateOverlay" aria-hidden="true">
+  <div id="celebrateBadge">
+    <svg class="checkIcon" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+    <span class="ray" style="--angle:0deg"></span>
+    <span class="ray" style="--angle:45deg"></span>
+    <span class="ray" style="--angle:90deg"></span>
+    <span class="ray" style="--angle:135deg"></span>
+    <span class="ray" style="--angle:180deg"></span>
+    <span class="ray" style="--angle:225deg"></span>
+    <span class="ray" style="--angle:270deg"></span>
+    <span class="ray" style="--angle:315deg"></span>
+  </div>
+  <div id="celebrateLabel"></div>
 </div>
 
 <!-- ============================================================
@@ -599,13 +662,14 @@
   // En cuanto pongas tus claves reales, se conecta sola a Firestore.
   // ============================================================
   const firebaseConfig = {
-    apiKey: "AIzaSyC7lbtUJk1vVD_5Lh-lEq7DW6GM1Frv4lc",
-    authDomain: "venarios.firebaseapp.com",
-    projectId: "venarios",
-    storageBucket: "venarios.firebasestorage.app",
-    messagingSenderId: "219743471671",
-    appId: "1:219743471671:web:061e567e9d4b6cddc3d7b2",
-    measurementId: "G-Z4WCNB7QT9"
+    apiKey: "...",
+    authDomain: "...",
+    databaseURL: "...",
+    projectId: "...",
+    storageBucket: "...",
+    messagingSenderId: "...",
+    appId: "...",
+    measurementId: "..."
   };
 </script>
 
@@ -614,7 +678,7 @@
   "use strict";
 
   const STORAGE_KEY = "preciosApp.productos.v1";
-  const FIRESTORE_COLLECTION = "productos";
+  const FIRESTORE_COLLECTION = "productos-venlista";
 
   let products = [];
   let editingId = null;
@@ -622,10 +686,10 @@
   let searchFocused = false;
   let expandedItem = null;
 
-  let selectedCategory = "";
-  let categoryOptionsData = [];
+  // Estado del buscador de categorías
+  let categoryMatches = [];
+  let categoryHighlightIndex = -1;
   let categoryOpen = false;
-  let highlightedIndex = -1;
 
   // Estado de la sincronización con Firestore (ver sección al final del archivo)
   let firestoreReady = false;
@@ -641,11 +705,8 @@
   const modalOverlay = document.getElementById("modalOverlay");
   const fieldName = document.getElementById("fieldName");
   const categorySelectEl = document.getElementById("categorySelect");
-  const categoryTrigger = document.getElementById("categoryTrigger");
-  const categoryValueLabel = document.getElementById("categoryValueLabel");
+  const fieldCategory = document.getElementById("fieldCategory");
   const categoryOptionsListEl = document.getElementById("categoryOptionsList");
-  const newCategoryField = document.getElementById("newCategoryField");
-  const fieldCategoryNew = document.getElementById("fieldCategoryNew");
   const fieldKeywords = document.getElementById("fieldKeywords");
   const fieldPrice = document.getElementById("fieldPrice");
   const deleteBtn = document.getElementById("deleteBtn");
@@ -656,6 +717,10 @@
   const confirmText = document.getElementById("confirmText");
   const confirmCancelBtn = document.getElementById("confirmCancelBtn");
   const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+  const celebrateOverlay = document.getElementById("celebrateOverlay");
+  const celebrateLabel = document.getElementById("celebrateLabel");
+  let celebrateTimer = null;
 
   // ---------- Persistencia local (caché para búsqueda instantánea) ----------
 
@@ -678,734 +743,4 @@
   }
 
   function genId(){
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-
-  // ---------- Formato de precio ----------
-
-  function formatPrice(value){
-    let num = Number(value);
-    if (!isFinite(num)) num = 0;
-    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
-    const isInteger = Number.isInteger(rounded);
-    let intPart, decPart;
-    if (isInteger){
-      intPart = String(Math.abs(rounded));
-      decPart = "";
-    }else{
-      const fixed = Math.abs(rounded).toFixed(2);
-      const parts = fixed.split(".");
-      intPart = parts[0];
-      decPart = parts[1];
-    }
-    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    const sign = rounded < 0 ? "-" : "";
-    return sign + intPart + (decPart ? "." + decPart : "");
-  }
-
-  // ---------- Búsqueda tolerante a errores ----------
-
-  function normalize(str){
-    return (str || "")
-      .toString()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
-  }
-
-  function levenshtein(a, b){
-    if (a === b) return 0;
-    const al = a.length, bl = b.length;
-    if (al === 0) return bl;
-    if (bl === 0) return al;
-    let prev = new Array(bl + 1);
-    for (let j = 0; j <= bl; j++) prev[j] = j;
-    for (let i = 1; i <= al; i++){
-      const curr = new Array(bl + 1);
-      curr[0] = i;
-      for (let j = 1; j <= bl; j++){
-        if (a[i - 1] === b[j - 1]){
-          curr[j] = prev[j - 1];
-        }else{
-          curr[j] = Math.min(prev[j - 1] + 1, curr[j - 1] + 1, prev[j] + 1);
-        }
-      }
-      prev = curr;
-    }
-    return prev[bl];
-  }
-
-  function typoThreshold(len){
-    if (len <= 2) return 0;
-    if (len <= 4) return 1;
-    if (len <= 7) return 2;
-    return 3;
-  }
-
-  function wordMatchScore(token, word){
-    if (!word) return 0;
-    if (word === token) return 3;
-    if (word.indexOf(token) !== -1 || token.indexOf(word) !== -1) return 2;
-    const threshold = typoThreshold(token.length);
-    if (threshold === 0) return 0;
-    const dist = levenshtein(token, word);
-    if (dist <= threshold) return 1.5 - (dist / (threshold + 1)) * 0.6;
-    return 0;
-  }
-
-  function productFieldWords(product){
-    const words = [];
-    normalize(product.name).split(/\s+/).forEach(w => { if (w) words.push(w); });
-    normalize(product.category).split(/\s+/).forEach(w => { if (w) words.push(w); });
-    normalize(product.keywords).split(/[\s,]+/).forEach(w => { if (w) words.push(w); });
-    return words;
-  }
-
-  function tokenScoreForProduct(token, words, product){
-    let best = 0;
-    for (let i = 0; i < words.length; i++){
-      const s = wordMatchScore(token, words[i]);
-      if (s > best) best = s;
-    }
-    if (/^\d+(\.\d+)?$/.test(token)){
-      const rawPrice = String(product.price);
-      const formattedPrice = formatPrice(product.price).replace(/,/g, "");
-      if (rawPrice === token || formattedPrice === token){
-        best = Math.max(best, 3);
-      }else if (rawPrice.indexOf(token) !== -1 || formattedPrice.indexOf(token) !== -1){
-        best = Math.max(best, 2.2);
-      }
-    }
-    return best;
-  }
-
-  function searchProducts(query){
-    const q = normalize(query);
-    if (!q) return [];
-    const tokens = q.split(/\s+/).filter(Boolean);
-    const scored = [];
-    for (let i = 0; i < products.length; i++){
-      const product = products[i];
-      const words = productFieldWords(product);
-      let total = 0;
-      let allMatch = true;
-      for (let t = 0; t < tokens.length; t++){
-        const s = tokenScoreForProduct(tokens[t], words, product);
-        if (s <= 0){ allMatch = false; break; }
-        total += s;
-      }
-      if (allMatch) scored.push({ product, score: total });
-    }
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map(s => s.product);
-  }
-
-  // ---------- Tarjetas expandibles ----------
-
-  function collapseExpanded(){
-    if (expandedItem){
-      expandedItem.classList.remove("expanded");
-      const btn = expandedItem.querySelector(".editBtn");
-      if (btn) btn.tabIndex = -1;
-      expandedItem = null;
-    }
-  }
-
-  function expandItem(item){
-    if (expandedItem === item) return;
-    collapseExpanded();
-    item.classList.add("expanded");
-    const btn = item.querySelector(".editBtn");
-    if (btn) btn.tabIndex = 0;
-    expandedItem = item;
-  }
-
-  function toggleItem(item){
-    if (item.classList.contains("expanded")){
-      collapseExpanded();
-    }else{
-      expandItem(item);
-    }
-  }
-
-  document.addEventListener("click", (e) => {
-    if (expandedItem && !expandedItem.contains(e.target)){
-      collapseExpanded();
-    }
-  });
-
-  // ---------- Render resultados ----------
-
-  function clearResults(){
-    resultsEl.innerHTML = "";
-    expandedItem = null;
-  }
-
-  function renderResults(list){
-    resultsEl.innerHTML = "";
-    expandedItem = null;
-
-    if (list.length === 0){
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = "Sin resultados";
-      resultsEl.appendChild(empty);
-      return;
-    }
-
-    list.forEach((p, i) => {
-      const item = document.createElement("div");
-      item.className = "resultItem";
-      item.style.animationDelay = Math.min(i * 0.04, 0.3) + "s";
-
-      const row = document.createElement("div");
-      row.className = "resultRow";
-      row.tabIndex = 0;
-      row.setAttribute("role", "button");
-
-      const info = document.createElement("div");
-      info.className = "resultInfo";
-
-      const name = document.createElement("div");
-      name.className = "resultName";
-      name.textContent = p.name;
-      info.appendChild(name);
-
-      if (p.category){
-        const meta = document.createElement("div");
-        meta.className = "resultMeta";
-        meta.textContent = p.category;
-        info.appendChild(meta);
-      }
-
-      const price = document.createElement("div");
-      price.className = "resultPrice";
-      const currency = document.createElement("span");
-      currency.className = "currency";
-      currency.textContent = "Q";
-      price.appendChild(currency);
-      price.appendChild(document.createTextNode(formatPrice(p.price)));
-
-      row.appendChild(info);
-      row.appendChild(price);
-
-      row.addEventListener("click", () => toggleItem(item));
-      row.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " "){
-          e.preventDefault();
-          toggleItem(item);
-        }
-      });
-
-      const reveal = document.createElement("div");
-      reveal.className = "editReveal";
-
-      const editBtnEl = document.createElement("button");
-      editBtnEl.type = "button";
-      editBtnEl.className = "editBtn";
-      editBtnEl.textContent = "Editar";
-      editBtnEl.tabIndex = -1;
-      editBtnEl.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openEditModal(p.id);
-      });
-      reveal.appendChild(editBtnEl);
-
-      item.appendChild(row);
-      item.appendChild(reveal);
-      resultsEl.appendChild(item);
-    });
-  }
-
-  function refreshView(){
-    const q = searchInput.value;
-    if (q.trim()){
-      renderResults(searchProducts(q));
-    }else{
-      clearResults();
-    }
-  }
-
-  // ---------- Visibilidad botón + / botón borrar búsqueda ----------
-
-  function updateAddBtnVisibility(){
-    const shouldHide = searchFocused || searchInput.value.trim() !== "";
-    addBtn.classList.toggle("hidden", shouldHide);
-  }
-
-  function updateClearButton(){
-    const hasText = searchInput.value.length > 0;
-    clearSearchBtn.classList.toggle("show", hasText);
-    searchInput.classList.toggle("hasClear", hasText);
-  }
-
-  searchInput.addEventListener("input", () => {
-    const q = searchInput.value;
-    if (q.trim()){
-      renderResults(searchProducts(q));
-    }else{
-      clearResults();
-    }
-    updateAddBtnVisibility();
-    updateClearButton();
-  });
-
-  searchInput.addEventListener("focus", () => {
-    searchFocused = true;
-    updateAddBtnVisibility();
-  });
-
-  searchInput.addEventListener("blur", () => {
-    searchFocused = false;
-    updateAddBtnVisibility();
-  });
-
-  clearSearchBtn.addEventListener("mousedown", (e) => e.preventDefault());
-  clearSearchBtn.addEventListener("click", () => {
-    searchInput.value = "";
-    clearResults();
-    updateClearButton();
-    updateAddBtnVisibility();
-    searchInput.focus();
-  });
-
-  // ---------- Categorías (desplegable propio) ----------
-
-  function getCategories(){
-    return Array.from(new Set(products.map(p => p.category).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, "es"));
-  }
-
-  function renderCategoryOptionsList(){
-    categoryOptionsListEl.innerHTML = "";
-    categoryOptionsData.forEach((opt, idx) => {
-      const div = document.createElement("div");
-      let cls = "customSelectOption";
-      if (opt.value === selectedCategory) cls += " selected";
-      if (opt.isNew) cls += " newOption";
-      div.className = cls;
-      div.setAttribute("role", "option");
-      div.textContent = opt.label;
-      div.addEventListener("click", () => selectCategoryOption(idx));
-      categoryOptionsListEl.appendChild(div);
-    });
-  }
-
-  function buildCategoryOptions(selected){
-    const cats = getCategories();
-    categoryOptionsData = [{ value: "", label: "Sin categoría" }]
-      .concat(cats.map(c => ({ value: c, label: c })))
-      .concat([{ value: "__new__", label: "+ Nueva categoría", isNew: true }]);
-
-    selectedCategory = selected || "";
-    const match = categoryOptionsData.find(o => o.value === selectedCategory);
-    categoryValueLabel.textContent = match ? match.label : "Sin categoría";
-    renderCategoryOptionsList();
-    closeCategoryList();
-  }
-
-  function applyHighlight(){
-    const opts = categoryOptionsListEl.querySelectorAll(".customSelectOption");
-    opts.forEach((el, i) => el.classList.toggle("highlighted", i === highlightedIndex));
-    const hl = opts[highlightedIndex];
-    if (hl) hl.scrollIntoView({ block: "nearest" });
-  }
-
-  function openCategoryList(){
-    categoryOpen = true;
-    categoryOptionsListEl.classList.add("open");
-    categoryTrigger.classList.add("open");
-    categoryTrigger.setAttribute("aria-expanded", "true");
-    highlightedIndex = categoryOptionsData.findIndex(o => o.value === selectedCategory);
-    if (highlightedIndex < 0) highlightedIndex = 0;
-    applyHighlight();
-  }
-
-  function closeCategoryList(){
-    categoryOpen = false;
-    categoryOptionsListEl.classList.remove("open");
-    categoryTrigger.classList.remove("open");
-    categoryTrigger.setAttribute("aria-expanded", "false");
-  }
-
-  function selectCategoryOption(idx){
-    const opt = categoryOptionsData[idx];
-    if (!opt) return;
-    selectedCategory = opt.value;
-    categoryValueLabel.textContent = opt.label;
-    renderCategoryOptionsList();
-    closeCategoryList();
-    if (selectedCategory === "__new__"){
-      showNewCategoryField();
-    }else{
-      hideNewCategoryField();
-      fieldKeywords.focus();
-    }
-  }
-
-  categoryTrigger.addEventListener("click", () => {
-    if (categoryOpen) closeCategoryList(); else openCategoryList();
-  });
-
-  categoryTrigger.addEventListener("keydown", (e) => {
-    if (!categoryOpen){
-      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp"){
-        e.preventDefault();
-        openCategoryList();
-      }
-      return;
-    }
-    if (e.key === "ArrowDown"){
-      e.preventDefault();
-      highlightedIndex = Math.min(highlightedIndex + 1, categoryOptionsData.length - 1);
-      applyHighlight();
-    }else if (e.key === "ArrowUp"){
-      e.preventDefault();
-      highlightedIndex = Math.max(highlightedIndex - 1, 0);
-      applyHighlight();
-    }else if (e.key === "Enter"){
-      e.preventDefault();
-      selectCategoryOption(highlightedIndex);
-    }else if (e.key === "Escape"){
-      e.preventDefault();
-      e.stopPropagation();
-      closeCategoryList();
-    }else if (e.key === "Tab"){
-      closeCategoryList();
-    }
-  });
-
-  document.addEventListener("click", (e) => {
-    if (categoryOpen && !categorySelectEl.contains(e.target)){
-      closeCategoryList();
-    }
-  });
-
-  function showNewCategoryField(){
-    newCategoryField.style.display = "flex";
-    newCategoryField.style.flexDirection = "column";
-    newCategoryField.classList.remove("field-pop");
-    void newCategoryField.offsetWidth;
-    newCategoryField.classList.add("field-pop");
-    setTimeout(() => fieldCategoryNew.focus(), 60);
-  }
-
-  function hideNewCategoryField(){
-    newCategoryField.style.display = "none";
-    fieldCategoryNew.value = "";
-  }
-
-  // ---------- Modal: agregar / editar ----------
-
-  function clearFieldErrors(){
-    [fieldName, fieldPrice].forEach(f => f.style.borderColor = "");
-  }
-
-  function openAddModal(){
-    editingId = null;
-    fieldName.value = "";
-    fieldKeywords.value = "";
-    fieldPrice.value = "";
-    clearFieldErrors();
-    buildCategoryOptions("");
-    hideNewCategoryField();
-    deleteBtn.style.display = "none";
-    modalOverlay.classList.add("open");
-    setTimeout(() => fieldName.focus(), 80);
-  }
-
-  function openEditModal(id){
-    const p = products.find(x => x.id === id);
-    if (!p) return;
-    editingId = id;
-    fieldName.value = p.name;
-    fieldKeywords.value = p.keywords || "";
-    fieldPrice.value = p.price;
-    clearFieldErrors();
-    buildCategoryOptions(p.category || "");
-    hideNewCategoryField();
-    deleteBtn.style.display = "inline-block";
-    modalOverlay.classList.add("open");
-    setTimeout(() => fieldName.focus(), 80);
-  }
-
-  function closeModal(){
-    modalOverlay.classList.remove("open");
-    closeCategoryList();
-  }
-
-  function handleSave(){
-    const name = fieldName.value.trim();
-    const keywords = fieldKeywords.value.trim();
-    const priceVal = parseFloat(fieldPrice.value);
-    const category = selectedCategory === "__new__"
-      ? fieldCategoryNew.value.trim()
-      : selectedCategory;
-
-    clearFieldErrors();
-
-    if (!name){
-      fieldName.style.borderColor = "#666666";
-      fieldName.focus();
-      return;
-    }
-    if (!isFinite(priceVal) || priceVal < 0){
-      fieldPrice.style.borderColor = "#666666";
-      fieldPrice.focus();
-      return;
-    }
-
-    const data = { name, category, keywords, price: priceVal };
-
-    if (firestoreReady){
-      // Con Firestore activo, el listener onSnapshot (ver abajo) se encarga
-      // de reflejar el cambio en pantalla y en la copia local en cuanto
-      // Firestore confirme el cambio (incluso sin conexión, gracias a su
-      // caché propia, esto suele sentirse instantáneo).
-      if (editingId){
-        productsCollection.doc(editingId).update(data).catch((err) => {
-          console.warn("Error al actualizar el producto en Firestore:", err);
-        });
-      }else{
-        productsCollection.add(data).catch((err) => {
-          console.warn("Error al agregar el producto en Firestore:", err);
-        });
-      }
-    }else{
-      // Sin Firestore configurado: el comportamiento es 100% local, igual que antes.
-      if (editingId){
-        const p = products.find(x => x.id === editingId);
-        if (p){
-          p.name = name;
-          p.category = category;
-          p.keywords = keywords;
-          p.price = priceVal;
-        }
-      }else{
-        products.push({ id: genId(), name, category, keywords, price: priceVal });
-      }
-      saveProducts();
-      refreshView();
-    }
-
-    closeModal();
-  }
-
-  addBtn.addEventListener("click", openAddModal);
-  cancelBtn.addEventListener("click", closeModal);
-  saveBtn.addEventListener("click", handleSave);
-
-  modalOverlay.addEventListener("click", (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
-
-  // ---------- Confirmación de borrado ----------
-
-  function openConfirmDelete(id){
-    const p = products.find(x => x.id === id);
-    if (!p) return;
-    pendingDeleteId = id;
-    confirmText.textContent = "¿Eliminar \"" + p.name + "\"?";
-    confirmOverlay.classList.add("open");
-  }
-
-  function closeConfirmDelete(){
-    confirmOverlay.classList.remove("open");
-    pendingDeleteId = null;
-  }
-
-  function performDelete(){
-    if (!pendingDeleteId) return;
-    const idToDelete = pendingDeleteId;
-
-    if (firestoreReady){
-      productsCollection.doc(idToDelete).delete().catch((err) => {
-        console.warn("Error al eliminar el producto en Firestore:", err);
-      });
-    }else{
-      products = products.filter(x => x.id !== idToDelete);
-      saveProducts();
-      refreshView();
-    }
-
-    closeConfirmDelete();
-    closeModal();
-  }
-
-  deleteBtn.addEventListener("click", () => {
-    if (editingId) openConfirmDelete(editingId);
-  });
-
-  confirmCancelBtn.addEventListener("click", closeConfirmDelete);
-  confirmDeleteBtn.addEventListener("click", performDelete);
-  confirmOverlay.addEventListener("click", (e) => {
-    if (e.target === confirmOverlay) closeConfirmDelete();
-  });
-
-  // ---------- Tecla Escape (prioridad) ----------
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (confirmOverlay.classList.contains("open")){
-      closeConfirmDelete();
-      return;
-    }
-    if (categoryOpen){
-      closeCategoryList();
-      return;
-    }
-    if (modalOverlay.classList.contains("open")){
-      closeModal();
-    }
-  });
-
-  // ---------- Enter -> siguiente campo ----------
-
-  function getFieldOrder(){
-    const order = [fieldName, categoryTrigger];
-    if (selectedCategory === "__new__"){
-      order.push(fieldCategoryNew);
-    }
-    order.push(fieldKeywords, fieldPrice);
-    return order;
-  }
-
-  function focusNext(current){
-    const order = getFieldOrder();
-    const idx = order.indexOf(current);
-    if (idx === -1) return;
-    if (idx === order.length - 1){
-      handleSave();
-    }else{
-      const next = order[idx + 1];
-      next.focus();
-      if (next.tagName === "INPUT" && typeof next.select === "function") next.select();
-    }
-  }
-
-  [fieldName, fieldCategoryNew, fieldKeywords, fieldPrice].forEach(f => {
-    f.addEventListener("keydown", (e) => {
-      if (e.key === "Enter"){
-        e.preventDefault();
-        focusNext(f);
-      }
-    });
-  });
-
-  // ====================================================================
-  // ---------- Firebase / Firestore: sincronización en la nube ----------
-  // ====================================================================
-  //
-  // Idea general:
-  // 1) Al entrar, ya se ve algo de inmediato porque `loadProducts()` lee
-  //    la última copia guardada en localStorage (búsqueda instantánea).
-  // 2) En paralelo, si configuraste tus claves de Firebase, nos conectamos
-  //    a Firestore y nos "suscribimos" a la colección con onSnapshot: esto
-  //    no es una descarga única, sino que se queda escuchando y avisa cada
-  //    vez que algo cambia (incluso si lo cambiaste desde otro dispositivo).
-  // 3) Cada vez que llega información nueva de Firestore, se reemplaza la
-  //    lista en memoria y se vuelve a guardar en localStorage, así esa
-  //    copia local siempre queda al día para la próxima vez que entres
-  //    (incluso con mala conexión).
-  // 4) Si es la primera vez que conectas Firestore y ya tenías productos
-  //    guardados solo de forma local, se suben automáticamente una vez
-  //    para no perderlos.
-  // 5) Si no configuraste tus claves (o Firebase no carga por alguna
-  //    razón), la página sigue funcionando exactamente igual que antes,
-  //    100% local.
-
-  function initFirebase(){
-    try{
-      if (typeof firebase === "undefined"){
-        return; // Las librerías de Firebase no cargaron; modo local.
-      }
-      if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "..."){
-        return; // Todavía no se pegaron las claves; modo local.
-      }
-
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-
-      // Permite que la app funcione sin internet: Firestore guarda una
-      // copia en IndexedDB y sincroniza solo cuando vuelve la conexión.
-      db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-        console.warn("Persistencia offline de Firestore no disponible:", err && err.code);
-      });
-
-      productsCollection = db.collection(FIRESTORE_COLLECTION);
-      firestoreReady = true;
-      subscribeToProducts();
-    }catch(e){
-      console.warn("No se pudo inicializar Firebase; la app sigue funcionando en modo local.", e);
-      firestoreReady = false;
-    }
-  }
-
-  function subscribeToProducts(){
-    if (!productsCollection) return;
-
-    productsCollection.onSnapshot((snapshot) => {
-      const remote = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data() || {};
-        remote.push({
-          id: docSnap.id,
-          name: d.name || "",
-          category: d.category || "",
-          keywords: d.keywords || "",
-          price: typeof d.price === "number" ? d.price : (parseFloat(d.price) || 0)
-        });
-      });
-
-      // Migración única: si Firestore está vacío pero ya teníamos productos
-      // guardados localmente, los subimos para no perderlos.
-      if (!migrationChecked){
-        migrationChecked = true;
-        if (remote.length === 0 && products.length > 0){
-          migrateLocalProductsToFirestore(products);
-          return; // este mismo listener se volverá a disparar al terminar
-        }
-      }
-
-      products = remote;
-      saveProducts();
-      refreshView();
-
-      // Si el modal de agregar/editar está abierto, refresca el desplegable
-      // de categorías por si llegaron categorías nuevas desde otro dispositivo.
-      if (modalOverlay.classList.contains("open")){
-        buildCategoryOptions(selectedCategory);
-      }
-    }, (error) => {
-      console.warn("No se pudo sincronizar con Firestore; se sigue usando la copia local.", error);
-    });
-  }
-
-  function migrateLocalProductsToFirestore(localProducts){
-    const batch = db.batch();
-    localProducts.forEach((p) => {
-      const ref = productsCollection.doc();
-      batch.set(ref, {
-        name: p.name || "",
-        category: p.category || "",
-        keywords: p.keywords || "",
-        price: typeof p.price === "number" ? p.price : (parseFloat(p.price) || 0)
-      });
-    });
-    batch.commit().catch((err) => {
-      console.warn("No se pudieron migrar los productos locales a Firestore.", err);
-    });
-  }
-
-  // ---------- Inicio ----------
-
-  loadProducts();           // copia local: lista para buscar al instante
-  updateAddBtnVisibility();
-  updateClearButton();
-  initFirebase();            // si hay claves configuradas, sincroniza con Firestore
-
-})();
-</script>
-</body>
-</html>
+    return Date.now().toString(36) + Math.random().toString(36)
