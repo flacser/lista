@@ -742,4 +742,775 @@
   }
 
   function genId(){
-    return Date.now().toString(36) + Math.random().toString(36)
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // ---------- Formato de precio ----------
+
+  function formatPrice(value){
+    let num = Number(value);
+    if (!isFinite(num)) num = 0;
+    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+    const isInteger = Number.isInteger(rounded);
+    let intPart, decPart;
+    if (isInteger){
+      intPart = String(Math.abs(rounded));
+      decPart = "";
+    }else{
+      const fixed = Math.abs(rounded).toFixed(2);
+      const parts = fixed.split(".");
+      intPart = parts[0];
+      decPart = parts[1];
+    }
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const sign = rounded < 0 ? "-" : "";
+    return sign + intPart + (decPart ? "." + decPart : "");
+  }
+
+  // ---------- Normalización (tildes / mayúsculas / errores) ----------
+
+  function normalize(str){
+    return (str || "")
+      .toString()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
+
+  function levenshtein(a, b){
+    if (a === b) return 0;
+    const al = a.length, bl = b.length;
+    if (al === 0) return bl;
+    if (bl === 0) return al;
+    let prev = new Array(bl + 1);
+    for (let j = 0; j <= bl; j++) prev[j] = j;
+    for (let i = 1; i <= al; i++){
+      const curr = new Array(bl + 1);
+      curr[0] = i;
+      for (let j = 1; j <= bl; j++){
+        if (a[i - 1] === b[j - 1]){
+          curr[j] = prev[j - 1];
+        }else{
+          curr[j] = Math.min(prev[j - 1] + 1, curr[j - 1] + 1, prev[j] + 1);
+        }
+      }
+      prev = curr;
+    }
+    return prev[bl];
+  }
+
+  function typoThreshold(len){
+    if (len <= 2) return 0;
+    if (len <= 4) return 1;
+    if (len <= 7) return 2;
+    return 3;
+  }
+
+  function wordMatchScore(token, word){
+    if (!word) return 0;
+    if (word === token) return 3;
+    if (word.indexOf(token) !== -1 || token.indexOf(word) !== -1) return 2;
+    const threshold = typoThreshold(token.length);
+    if (threshold === 0) return 0;
+    const dist = levenshtein(token, word);
+    if (dist <= threshold) return 1.5 - (dist / (threshold + 1)) * 0.6;
+    return 0;
+  }
+
+  function productFieldWords(product){
+    const words = [];
+    normalize(product.name).split(/\s+/).forEach(w => { if (w) words.push(w); });
+    normalize(product.category).split(/\s+/).forEach(w => { if (w) words.push(w); });
+    normalize(product.keywords).split(/[\s,]+/).forEach(w => { if (w) words.push(w); });
+    return words;
+  }
+
+  function tokenScoreForProduct(token, words, product){
+    let best = 0;
+    for (let i = 0; i < words.length; i++){
+      const s = wordMatchScore(token, words[i]);
+      if (s > best) best = s;
+    }
+    if (/^\d+(\.\d+)?$/.test(token)){
+      const rawPrice = String(product.price);
+      const formattedPrice = formatPrice(product.price).replace(/,/g, "");
+      if (rawPrice === token || formattedPrice === token){
+        best = Math.max(best, 3);
+      }else if (rawPrice.indexOf(token) !== -1 || formattedPrice.indexOf(token) !== -1){
+        best = Math.max(best, 2.2);
+      }
+    }
+    return best;
+  }
+
+  function searchProducts(query){
+    const q = normalize(query);
+    if (!q) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const scored = [];
+    for (let i = 0; i < products.length; i++){
+      const product = products[i];
+      const words = productFieldWords(product);
+      let total = 0;
+      let allMatch = true;
+      for (let t = 0; t < tokens.length; t++){
+        const s = tokenScoreForProduct(tokens[t], words, product);
+        if (s <= 0){ allMatch = false; break; }
+        total += s;
+      }
+      if (allMatch) scored.push({ product, score: total });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.product);
+  }
+
+  // ---------- Tarjetas expandibles ----------
+
+  function collapseExpanded(){
+    if (expandedItem){
+      expandedItem.classList.remove("expanded");
+      const btn = expandedItem.querySelector(".editBtn");
+      if (btn) btn.tabIndex = -1;
+      expandedItem = null;
+    }
+  }
+
+  function expandItem(item){
+    if (expandedItem === item) return;
+    collapseExpanded();
+    item.classList.add("expanded");
+    const btn = item.querySelector(".editBtn");
+    if (btn) btn.tabIndex = 0;
+    expandedItem = item;
+  }
+
+  function toggleItem(item){
+    if (item.classList.contains("expanded")){
+      collapseExpanded();
+    }else{
+      expandItem(item);
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    if (expandedItem && !expandedItem.contains(e.target)){
+      collapseExpanded();
+    }
+  });
+
+  // ---------- Render resultados ----------
+
+  function clearResults(){
+    resultsEl.innerHTML = "";
+    expandedItem = null;
+  }
+
+  function renderResults(list){
+    resultsEl.innerHTML = "";
+    expandedItem = null;
+
+    if (list.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Sin resultados";
+      resultsEl.appendChild(empty);
+      return;
+    }
+
+    list.forEach((p, i) => {
+      const item = document.createElement("div");
+      item.className = "resultItem";
+      item.style.animationDelay = Math.min(i * 0.04, 0.3) + "s";
+
+      const row = document.createElement("div");
+      row.className = "resultRow";
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
+
+      const info = document.createElement("div");
+      info.className = "resultInfo";
+
+      const name = document.createElement("div");
+      name.className = "resultName";
+      name.textContent = p.name;
+      info.appendChild(name);
+
+      if (p.category){
+        const meta = document.createElement("div");
+        meta.className = "resultMeta";
+        meta.textContent = p.category;
+        info.appendChild(meta);
+      }
+
+      const price = document.createElement("div");
+      price.className = "resultPrice";
+      const currency = document.createElement("span");
+      currency.className = "currency";
+      currency.textContent = "Q";
+      price.appendChild(currency);
+      price.appendChild(document.createTextNode(formatPrice(p.price)));
+
+      row.appendChild(info);
+      row.appendChild(price);
+
+      row.addEventListener("click", () => toggleItem(item));
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " "){
+          e.preventDefault();
+          toggleItem(item);
+        }
+      });
+
+      const reveal = document.createElement("div");
+      reveal.className = "editReveal";
+
+      const editBtnEl = document.createElement("button");
+      editBtnEl.type = "button";
+      editBtnEl.className = "editBtn";
+      editBtnEl.textContent = "Editar";
+      editBtnEl.tabIndex = -1;
+      editBtnEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditModal(p.id);
+      });
+      reveal.appendChild(editBtnEl);
+
+      item.appendChild(row);
+      item.appendChild(reveal);
+      resultsEl.appendChild(item);
+    });
+  }
+
+  function refreshView(){
+    const q = searchInput.value;
+    if (q.trim()){
+      renderResults(searchProducts(q));
+    }else{
+      clearResults();
+    }
+  }
+
+  // ---------- Visibilidad botón + / botón borrar búsqueda ----------
+
+  function updateAddBtnVisibility(){
+    const shouldHide = searchFocused || searchInput.value.trim() !== "";
+    addBtn.classList.toggle("hidden", shouldHide);
+  }
+
+  function updateClearButton(){
+    const hasText = searchInput.value.length > 0;
+    clearSearchBtn.classList.toggle("show", hasText);
+    searchInput.classList.toggle("hasClear", hasText);
+  }
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value;
+    if (q.trim()){
+      renderResults(searchProducts(q));
+    }else{
+      clearResults();
+    }
+    updateAddBtnVisibility();
+    updateClearButton();
+  });
+
+  searchInput.addEventListener("focus", () => {
+    searchFocused = true;
+    updateAddBtnVisibility();
+  });
+
+  searchInput.addEventListener("blur", () => {
+    searchFocused = false;
+    updateAddBtnVisibility();
+  });
+
+  clearSearchBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  clearSearchBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    clearResults();
+    updateClearButton();
+    updateAddBtnVisibility();
+    unlockInput(searchInput);
+    searchInput.focus();
+  });
+
+  // ---------- Categoría: buscador / autocompletar ----------
+
+  function getCategories(){
+    return Array.from(new Set(products.map(p => p.category).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, "es"));
+  }
+
+  function filterCategories(query){
+    const all = getCategories();
+    const nq = normalize(query);
+    if (!nq) return all;
+    return all.filter(c => normalize(c).indexOf(nq) !== -1);
+  }
+
+  function renderCategorySuggestions(){
+    categoryOptionsListEl.innerHTML = "";
+    categoryMatches.forEach((cat, idx) => {
+      const div = document.createElement("div");
+      div.className = "customSelectOption" + (idx === categoryHighlightIndex ? " highlighted" : "");
+      div.setAttribute("role", "option");
+      div.textContent = cat;
+      div.addEventListener("mousedown", (e) => e.preventDefault());
+      div.addEventListener("click", () => selectCategorySuggestion(idx));
+      categoryOptionsListEl.appendChild(div);
+    });
+  }
+
+  function openCategorySuggestions(){
+    categoryMatches = filterCategories(fieldCategory.value);
+    categoryHighlightIndex = -1;
+    renderCategorySuggestions();
+    const hasMatches = categoryMatches.length > 0;
+    categoryOptionsListEl.classList.toggle("open", hasMatches);
+    categoryOpen = hasMatches;
+  }
+
+  function closeCategorySuggestions(){
+    categoryOptionsListEl.classList.remove("open");
+    categoryOpen = false;
+    categoryHighlightIndex = -1;
+  }
+
+  function selectCategorySuggestion(idx){
+    const cat = categoryMatches[idx];
+    if (cat === undefined) return;
+    fieldCategory.value = cat;
+    fieldCategory.style.borderColor = "";
+    closeCategorySuggestions();
+    unlockInput(fieldKeywords);
+    fieldKeywords.focus();
+  }
+
+  // Si lo escrito coincide con una categoría ya existente (solo distinta en
+  // tildes/mayúsculas), la corrige a la versión ya guardada para no duplicar.
+  function finalizeCategoryInput(){
+    const typed = fieldCategory.value.trim();
+    closeCategorySuggestions();
+    if (!typed) return;
+    const nTyped = normalize(typed);
+    const existing = getCategories().find(c => normalize(c) === nTyped);
+    if (existing && existing !== typed){
+      fieldCategory.value = existing;
+    }
+  }
+
+  function resetCategoryField(value){
+    fieldCategory.value = value || "";
+    closeCategorySuggestions();
+    fieldCategory.style.borderColor = "";
+  }
+
+  fieldCategory.addEventListener("input", () => {
+    fieldCategory.style.borderColor = "";
+    openCategorySuggestions();
+  });
+
+  fieldCategory.addEventListener("focus", () => {
+    openCategorySuggestions();
+  });
+
+  fieldCategory.addEventListener("blur", () => {
+    setTimeout(finalizeCategoryInput, 0);
+  });
+
+  fieldCategory.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown"){
+      e.preventDefault();
+      if (!categoryOpen) openCategorySuggestions();
+      if (categoryMatches.length){
+        categoryHighlightIndex = Math.min(categoryHighlightIndex + 1, categoryMatches.length - 1);
+        renderCategorySuggestions();
+      }
+    }else if (e.key === "ArrowUp"){
+      e.preventDefault();
+      if (categoryMatches.length){
+        categoryHighlightIndex = Math.max(categoryHighlightIndex - 1, 0);
+        renderCategorySuggestions();
+      }
+    }else if (e.key === "Enter"){
+      e.preventDefault();
+      if (categoryOpen && categoryHighlightIndex >= 0 && categoryMatches[categoryHighlightIndex] !== undefined){
+        selectCategorySuggestion(categoryHighlightIndex);
+      }else{
+        finalizeCategoryInput();
+        focusNext(fieldCategory);
+      }
+    }else if (e.key === "Escape"){
+      if (categoryOpen){
+        e.preventDefault();
+        e.stopPropagation();
+        closeCategorySuggestions();
+      }
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (categoryOpen && !categorySelectEl.contains(e.target)){
+      closeCategorySuggestions();
+    }
+  });
+
+  // ---------- Modal: agregar / editar ----------
+
+  function clearFieldErrors(){
+    [fieldName, fieldCategory, fieldPrice].forEach(f => f.style.borderColor = "");
+  }
+
+  function openAddModal(){
+    editingId = null;
+    fieldName.value = "";
+    resetCategoryField("");
+    fieldKeywords.value = "";
+    fieldPrice.value = "";
+    clearFieldErrors();
+    deleteBtn.style.display = "none";
+    modalOverlay.classList.add("open");
+    unlockInput(fieldName);
+    setTimeout(() => fieldName.focus(), 80);
+  }
+
+  function openEditModal(id){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    editingId = id;
+    fieldName.value = p.name;
+    resetCategoryField(p.category || "");
+    fieldKeywords.value = p.keywords || "";
+    fieldPrice.value = p.price;
+    clearFieldErrors();
+    deleteBtn.style.display = "inline-block";
+    modalOverlay.classList.add("open");
+    unlockInput(fieldName);
+    setTimeout(() => fieldName.focus(), 80);
+  }
+
+  function closeModal(){
+    modalOverlay.classList.remove("open");
+    closeCategorySuggestions();
+  }
+
+  function handleSave(){
+    const name = fieldName.value.trim();
+    finalizeCategoryInput();
+    const categoryTyped = fieldCategory.value.trim();
+    const keywords = fieldKeywords.value.trim();
+    const priceVal = parseFloat(fieldPrice.value);
+
+    clearFieldErrors();
+
+    if (!name){
+      fieldName.style.borderColor = "#666666";
+      fieldName.focus();
+      return;
+    }
+    if (!categoryTyped){
+      fieldCategory.style.borderColor = "#666666";
+      fieldCategory.focus();
+      return;
+    }
+    if (!isFinite(priceVal) || priceVal < 0){
+      fieldPrice.style.borderColor = "#666666";
+      fieldPrice.focus();
+      return;
+    }
+
+    // Si ya existe una categoría igual (solo con distinta tilde/mayúscula),
+    // usamos la versión ya guardada en vez de crear una casi-duplicada.
+    const nCategory = normalize(categoryTyped);
+    const existingCategory = getCategories().find(c => normalize(c) === nCategory);
+    const category = existingCategory || categoryTyped;
+
+    const data = { name, category, keywords, price: priceVal };
+    const isNewProduct = !editingId;
+
+    if (firestoreReady){
+      // Con Firestore activo, el listener onSnapshot (ver abajo) se encarga
+      // de reflejar el cambio en pantalla y en la copia local en cuanto
+      // Firestore confirme el cambio (incluso sin conexión, gracias a su
+      // caché propia, esto suele sentirse instantáneo).
+      if (editingId){
+        productsCollection.doc(editingId).update(data).catch((err) => {
+          console.warn("Error al actualizar el producto en Firestore:", err);
+        });
+      }else{
+        productsCollection.add(data).catch((err) => {
+          console.warn("Error al agregar el producto en Firestore:", err);
+        });
+      }
+    }else{
+      // Sin Firestore configurado: el comportamiento es 100% local, igual que antes.
+      if (editingId){
+        const p = products.find(x => x.id === editingId);
+        if (p){
+          p.name = name;
+          p.category = category;
+          p.keywords = keywords;
+          p.price = priceVal;
+        }
+      }else{
+        products.push({ id: genId(), name, category, keywords, price: priceVal });
+      }
+      saveProducts();
+      refreshView();
+    }
+
+    if (isNewProduct){
+      celebrateAdded(name);
+    }
+
+    closeModal();
+  }
+
+  addBtn.addEventListener("click", openAddModal);
+  cancelBtn.addEventListener("click", closeModal);
+  saveBtn.addEventListener("click", handleSave);
+
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  // ---------- Celebración al agregar un producto nuevo ----------
+
+  function celebrateAdded(name){
+    celebrateLabel.textContent = name ? "\u201c" + name + "\u201d agregado" : "Producto agregado";
+    celebrateOverlay.classList.remove("show");
+    void celebrateOverlay.offsetWidth; // reinicia la animación si se dispara seguido
+    celebrateOverlay.classList.add("show");
+    clearTimeout(celebrateTimer);
+    celebrateTimer = setTimeout(() => celebrateOverlay.classList.remove("show"), 1450);
+  }
+
+  // ---------- Confirmación de borrado ----------
+
+  function openConfirmDelete(id){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    pendingDeleteId = id;
+    confirmText.textContent = "¿Eliminar \"" + p.name + "\"?";
+    confirmOverlay.classList.add("open");
+  }
+
+  function closeConfirmDelete(){
+    confirmOverlay.classList.remove("open");
+    pendingDeleteId = null;
+  }
+
+  function performDelete(){
+    if (!pendingDeleteId) return;
+    const idToDelete = pendingDeleteId;
+
+    if (firestoreReady){
+      productsCollection.doc(idToDelete).delete().catch((err) => {
+        console.warn("Error al eliminar el producto en Firestore:", err);
+      });
+    }else{
+      products = products.filter(x => x.id !== idToDelete);
+      saveProducts();
+      refreshView();
+    }
+
+    closeConfirmDelete();
+    closeModal();
+  }
+
+  deleteBtn.addEventListener("click", () => {
+    if (editingId) openConfirmDelete(editingId);
+  });
+
+  confirmCancelBtn.addEventListener("click", closeConfirmDelete);
+  confirmDeleteBtn.addEventListener("click", performDelete);
+  confirmOverlay.addEventListener("click", (e) => {
+    if (e.target === confirmOverlay) closeConfirmDelete();
+  });
+
+  // ---------- Tecla Escape (prioridad) ----------
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (confirmOverlay.classList.contains("open")){
+      closeConfirmDelete();
+      return;
+    }
+    if (categoryOpen){
+      closeCategorySuggestions();
+      return;
+    }
+    if (modalOverlay.classList.contains("open")){
+      closeModal();
+    }
+  });
+
+  // ---------- Enter -> siguiente campo ----------
+
+  function getFieldOrder(){
+    return [fieldName, fieldCategory, fieldKeywords, fieldPrice];
+  }
+
+  function focusNext(current){
+    const order = getFieldOrder();
+    const idx = order.indexOf(current);
+    if (idx === -1) return;
+    if (idx === order.length - 1){
+      handleSave();
+    }else{
+      const next = order[idx + 1];
+      unlockInput(next);
+      next.focus();
+      if (next.tagName === "INPUT" && typeof next.select === "function") next.select();
+    }
+  }
+
+  [fieldName, fieldKeywords, fieldPrice].forEach(f => {
+    f.addEventListener("keydown", (e) => {
+      if (e.key === "Enter"){
+        e.preventDefault();
+        focusNext(f);
+      }
+    });
+  });
+
+  // ====================================================================
+  // ---------- Evitar la barra de autocompletado del navegador ----------
+  // ====================================================================
+  // En Chrome para Android, al enfocar un campo de texto puede aparecer
+  // una barra arriba del teclado con accesos a contraseñas, tarjetas y
+  // direcciones guardadas. No hay un atributo HTML 100% garantizado para
+  // desactivarla (es un comportamiento del propio Chrome/Android, no solo
+  // de esta página), pero el truco más efectivo y usado es: el campo
+  // empieza en "solo lectura" para que el navegador no lo detecte como
+  // un campo "rellenable", y se vuelve editable justo en el momento en
+  // que la persona realmente lo toca o entra a él a propósito.
+
+  function unlockInput(input){
+    input.removeAttribute("readonly");
+  }
+
+  function disableAutofillBar(input){
+    input.setAttribute("readonly", "");
+    function unlock(e){
+      if (e && e.isTrusted === false) return; // ignora foco/touch disparado por nuestro propio código
+      input.removeAttribute("readonly");
+      input.removeEventListener("focus", unlock);
+      input.removeEventListener("touchstart", unlock);
+    }
+    input.addEventListener("focus", unlock);
+    input.addEventListener("touchstart", unlock, { passive: true });
+  }
+
+  // ====================================================================
+  // ---------- Firebase / Firestore: sincronización en la nube ----------
+  // ====================================================================
+  //
+  // Idea general:
+  // 1) Al entrar, ya se ve algo de inmediato porque `loadProducts()` lee
+  //    la última copia guardada en localStorage (búsqueda instantánea).
+  // 2) En paralelo, si configuraste tus claves de Firebase, nos conectamos
+  //    a Firestore y nos "suscribimos" a la colección con onSnapshot: esto
+  //    no es una descarga única, sino que se queda escuchando y avisa cada
+  //    vez que algo cambia (incluso si lo cambiaste desde otro dispositivo).
+  // 3) Cada vez que llega información nueva de Firestore, se reemplaza la
+  //    lista en memoria y se vuelve a guardar en localStorage, así esa
+  //    copia local siempre queda al día para la próxima vez que entres
+  //    (incluso con mala conexión).
+  // 4) Si es la primera vez que conectas Firestore y ya tenías productos
+  //    guardados solo de forma local, se suben automáticamente una vez
+  //    para no perderlos.
+  // 5) Si no configuraste tus claves (o Firebase no carga por alguna
+  //    razón), la página sigue funcionando exactamente igual que antes,
+  //    100% local.
+
+  function initFirebase(){
+    try{
+      if (typeof firebase === "undefined"){
+        return; // Las librerías de Firebase no cargaron; modo local.
+      }
+      if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "..."){
+        return; // Todavía no se pegaron las claves; modo local.
+      }
+
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+
+      // Permite que la app funcione sin internet: Firestore guarda una
+      // copia en IndexedDB y sincroniza solo cuando vuelve la conexión.
+      db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+        console.warn("Persistencia offline de Firestore no disponible:", err && err.code);
+      });
+
+      productsCollection = db.collection(FIRESTORE_COLLECTION);
+      firestoreReady = true;
+      subscribeToProducts();
+    }catch(e){
+      console.warn("No se pudo inicializar Firebase; la app sigue funcionando en modo local.", e);
+      firestoreReady = false;
+    }
+  }
+
+  function subscribeToProducts(){
+    if (!productsCollection) return;
+
+    productsCollection.onSnapshot((snapshot) => {
+      const remote = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        remote.push({
+          id: docSnap.id,
+          name: d.name || "",
+          category: d.category || "",
+          keywords: d.keywords || "",
+          price: typeof d.price === "number" ? d.price : (parseFloat(d.price) || 0)
+        });
+      });
+
+      // Migración única: si Firestore está vacío pero ya teníamos productos
+      // guardados localmente, los subimos para no perderlos.
+      if (!migrationChecked){
+        migrationChecked = true;
+        if (remote.length === 0 && products.length > 0){
+          migrateLocalProductsToFirestore(products);
+          return; // este mismo listener se volverá a disparar al terminar
+        }
+      }
+
+      products = remote;
+      saveProducts();
+      refreshView();
+    }, (error) => {
+      console.warn("No se pudo sincronizar con Firestore; se sigue usando la copia local.", error);
+    });
+  }
+
+  function migrateLocalProductsToFirestore(localProducts){
+    const batch = db.batch();
+    localProducts.forEach((p) => {
+      const ref = productsCollection.doc();
+      batch.set(ref, {
+        name: p.name || "",
+        category: p.category || "",
+        keywords: p.keywords || "",
+        price: typeof p.price === "number" ? p.price : (parseFloat(p.price) || 0)
+      });
+    });
+    batch.commit().catch((err) => {
+      console.warn("No se pudieron migrar los productos locales a Firestore.", err);
+    });
+  }
+
+  // ---------- Inicio ----------
+
+  loadProducts();           // copia local: lista para buscar al instante
+  updateAddBtnVisibility();
+  updateClearButton();
+  [searchInput, fieldName, fieldCategory, fieldKeywords, fieldPrice].forEach(disableAutofillBar);
+  initFirebase();            // si hay claves configuradas, sincroniza con Firestore
+
+})();
+</script>
+</body>
+</html>
