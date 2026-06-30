@@ -454,7 +454,82 @@
     word-break:break-word;
   }
 
-  /* ---------- Celebración al agregar un producto nuevo ---------- */
+  /* ---------- Indicador de sync Firestore ---------- */
+
+  #syncDot{
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top));
+    right:18px;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--border-strong);
+    z-index:40;
+    transition:background .4s ease, box-shadow .4s ease;
+  }
+
+  #syncDot.connecting{
+    background:#f5a623;
+    box-shadow:0 0 0 0 rgba(245,166,35,.6);
+    animation:syncPulse 1.2s infinite;
+  }
+
+  #syncDot.synced{
+    background:#4cd964;
+    box-shadow:none;
+  }
+
+  #syncDot.error{
+    background:#ff3b30;
+    box-shadow:none;
+  }
+
+  @keyframes syncPulse{
+    0%{ box-shadow:0 0 0 0 rgba(245,166,35,.6); }
+    70%{ box-shadow:0 0 0 6px rgba(245,166,35,0); }
+    100%{ box-shadow:0 0 0 0 rgba(245,166,35,0); }
+  }
+
+  /* ---------- Toast de error/aviso ---------- */
+
+  #toastContainer{
+    position:fixed;
+    bottom:calc(110px + env(safe-area-inset-bottom));
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    z-index:80;
+    pointer-events:none;
+  }
+
+  .toast{
+    background:#1a1a1a;
+    border:1px solid var(--border-strong);
+    color:var(--fg);
+    padding:12px 18px;
+    border-radius:12px;
+    font-size:0.86rem;
+    max-width:88vw;
+    text-align:center;
+    pointer-events:auto;
+    animation:toastIn .3s var(--ease-spring) both;
+    box-shadow:0 6px 18px rgba(0,0,0,0.5);
+  }
+
+  .toast.error{ border-color:#ff3b30; color:#ff6b63; }
+
+  @keyframes toastIn{
+    from{ opacity:0; transform:translateY(12px) scale(.95); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  @keyframes toastOut{
+    from{ opacity:1; transform:scale(1); }
+    to{ opacity:0; transform:scale(.9); }
+  }
 
   #celebrateOverlay{
     position:fixed;
@@ -582,6 +657,9 @@
 </main>
 
 <button id="addBtn" aria-label="Agregar producto" aria-haspopup="dialog"><span>+</span></button>
+
+<div id="syncDot" title="Estado de sincronización"></div>
+<div id="toastContainer"></div>
 
 <div id="modalOverlay" role="dialog" aria-modal="true" aria-label="Producto">
   <div id="modal">
@@ -720,6 +798,28 @@
   const celebrateOverlay = document.getElementById("celebrateOverlay");
   const celebrateLabel = document.getElementById("celebrateLabel");
   let celebrateTimer = null;
+
+  const syncDot = document.getElementById("syncDot");
+  const toastContainer = document.getElementById("toastContainer");
+
+  // ---------- Indicador de sync y toasts ----------
+
+  function setSyncStatus(status){
+    syncDot.className = "";
+    if (status) syncDot.classList.add(status);
+  }
+
+  function showToast(msg, isError, duration){
+    const t = document.createElement("div");
+    t.className = "toast" + (isError ? " error" : "");
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    const ms = duration || (isError ? 5000 : 3000);
+    setTimeout(() => {
+      t.style.animation = "toastOut .25s ease forwards";
+      setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 260);
+    }, ms);
+  }
 
   // ---------- Persistencia local (caché para búsqueda instantánea) ----------
 
@@ -1235,13 +1335,9 @@
       // Firestore confirme el cambio (incluso sin conexión, gracias a su
       // caché propia, esto suele sentirse instantáneo).
       if (editingId){
-        productsCollection.doc(editingId).update(data).catch((err) => {
-          console.warn("Error al actualizar el producto en Firestore:", err);
-        });
+        fsWrite(productsCollection.doc(editingId).update(data), "Error al actualizar el producto.");
       }else{
-        productsCollection.add(data).catch((err) => {
-          console.warn("Error al agregar el producto en Firestore:", err);
-        });
+        fsWrite(productsCollection.add(data), "Error al agregar el producto.");
       }
     }else{
       // Sin Firestore configurado: el comportamiento es 100% local, igual que antes.
@@ -1306,9 +1402,7 @@
     const idToDelete = pendingDeleteId;
 
     if (firestoreReady){
-      productsCollection.doc(idToDelete).delete().catch((err) => {
-        console.warn("Error al eliminar el producto en Firestore:", err);
-      });
+      fsWrite(productsCollection.doc(idToDelete).delete(), "Error al eliminar el producto.");
     }else{
       products = products.filter(x => x.id !== idToDelete);
       saveProducts();
@@ -1426,28 +1520,46 @@
   //    100% local.
 
   function initFirebase(){
-    try{
-      if (typeof firebase === "undefined"){
-        return; // Las librerías de Firebase no cargaron; modo local.
-      }
-      if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "..."){
-        return; // Todavía no se pegaron las claves; modo local.
-      }
+    // Si las librerías no cargaron (sin internet al abrir), quedamos en modo local.
+    if (typeof firebase === "undefined"){
+      console.log("[Firebase] SDK no disponible — modo local.");
+      return;
+    }
+    // Si las claves son las de ejemplo, modo local.
+    if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "..."){
+      console.log("[Firebase] Claves no configuradas — modo local.");
+      return;
+    }
 
+    try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
 
-      // Permite que la app funcione sin internet: Firestore guarda una
-      // copia en IndexedDB y sincroniza solo cuando vuelve la conexión.
-      db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-        console.warn("Persistencia offline de Firestore no disponible:", err && err.code);
-      });
+      // Offline persistence: permite trabajar sin internet y sincroniza al volver.
+      // Si falla (múltiples pestañas, navegador privado, etc.) la app sigue andando
+      // normalmente, solo sin caché offline de Firestore.
+      db.enablePersistence({ synchronizeTabs: true })
+        .then(() => console.log("[Firebase] Persistencia offline activa."))
+        .catch((err) => {
+          if (err.code === "failed-precondition"){
+            console.log("[Firebase] Persistencia desactivada (múltiples pestañas abiertas).");
+          }else if (err.code === "unimplemented"){
+            console.log("[Firebase] Persistencia no soportada en este navegador.");
+          }else{
+            console.warn("[Firebase] Error en persistencia:", err);
+          }
+        });
 
       productsCollection = db.collection(FIRESTORE_COLLECTION);
       firestoreReady = true;
+      setSyncStatus("connecting");
+      console.log("[Firebase] Conectando a la colección:", FIRESTORE_COLLECTION);
       subscribeToProducts();
+
     }catch(e){
-      console.warn("No se pudo inicializar Firebase; la app sigue funcionando en modo local.", e);
+      console.error("[Firebase] Error al inicializar:", e);
+      setSyncStatus("error");
+      showToast("No se pudo conectar a la nube. Los datos se guardan solo localmente.", true);
       firestoreReady = false;
     }
   }
@@ -1455,35 +1567,53 @@
   function subscribeToProducts(){
     if (!productsCollection) return;
 
-    productsCollection.onSnapshot((snapshot) => {
-      const remote = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data() || {};
-        remote.push({
-          id: docSnap.id,
-          name: d.name || "",
-          category: d.category || "",
-          keywords: d.keywords || "",
-          price: typeof d.price === "number" ? d.price : (parseFloat(d.price) || 0)
+    productsCollection.onSnapshot(
+      // ── Llegó una actualización de Firestore ──
+      (snapshot) => {
+        const remote = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data() || {};
+          remote.push({
+            id: docSnap.id,
+            name: d.name || "",
+            category: d.category || "",
+            keywords: d.keywords || "",
+            price: typeof d.price === "number" ? d.price : (parseFloat(d.price) || 0)
+          });
         });
-      });
 
-      // Migración única: si Firestore está vacío pero ya teníamos productos
-      // guardados localmente, los subimos para no perderlos.
-      if (!migrationChecked){
-        migrationChecked = true;
-        if (remote.length === 0 && products.length > 0){
-          migrateLocalProductsToFirestore(products);
-          return; // este mismo listener se volverá a disparar al terminar
+        setSyncStatus("synced");
+        console.log("[Firebase] Snapshot recibido:", remote.length, "productos.");
+
+        // Migración única: si Firestore está vacío pero ya teníamos datos
+        // locales, los subimos para no perderlos al cambiar de dispositivo.
+        if (!migrationChecked){
+          migrationChecked = true;
+          if (remote.length === 0 && products.length > 0){
+            console.log("[Firebase] Firestore vacío, migrando", products.length, "productos locales...");
+            migrateLocalProductsToFirestore(products);
+            return; // el listener se vuelve a disparar cuando termine la migración
+          }
         }
-      }
 
-      products = remote;
-      saveProducts();
-      refreshView();
-    }, (error) => {
-      console.warn("No se pudo sincronizar con Firestore; se sigue usando la copia local.", error);
-    });
+        products = remote;
+        saveProducts();
+        refreshView();
+      },
+      // ── Error en el listener (permisos, red, etc.) ──
+      (error) => {
+        console.error("[Firebase] Error en onSnapshot:", error);
+        setSyncStatus("error");
+
+        let msg = "Error al sincronizar con la nube.";
+        if (error.code === "permission-denied"){
+          msg = "Permiso denegado en Firestore. Revisá las reglas de seguridad en Firebase Console.";
+        }else if (error.code === "unavailable"){
+          msg = "Firestore no disponible. Verificá la conexión a internet.";
+        }
+        showToast(msg, true, 8000);
+      }
+    );
   }
 
   function migrateLocalProductsToFirestore(localProducts){
@@ -1497,9 +1627,28 @@
         price: typeof p.price === "number" ? p.price : (parseFloat(p.price) || 0)
       });
     });
-    batch.commit().catch((err) => {
-      console.warn("No se pudieron migrar los productos locales a Firestore.", err);
-    });
+    batch.commit()
+      .then(() => console.log("[Firebase] Migración completada."))
+      .catch((err) => {
+        console.error("[Firebase] Error al migrar productos locales:", err);
+        showToast("No se pudieron subir los productos existentes a la nube.", true);
+      });
+  }
+
+  // Wrapper para writes con feedback visible si fallan
+  function fsWrite(promise, errorMsg){
+    setSyncStatus("connecting");
+    return promise
+      .then(() => setSyncStatus("synced"))
+      .catch((err) => {
+        console.error("[Firebase] Error al escribir:", err);
+        setSyncStatus("error");
+        let detail = errorMsg || "Error al guardar en la nube.";
+        if (err.code === "permission-denied"){
+          detail = "Permiso denegado. Revisá las reglas de seguridad en Firebase Console.";
+        }
+        showToast(detail, true, 7000);
+      });
   }
 
   // ---------- Inicio ----------
