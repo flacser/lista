@@ -454,42 +454,6 @@
     word-break:break-word;
   }
 
-  /* ---------- Indicador de sync Firestore ---------- */
-
-  #syncDot{
-    position:fixed;
-    top:calc(16px + env(safe-area-inset-top));
-    right:18px;
-    width:7px;
-    height:7px;
-    border-radius:50%;
-    background:var(--border-strong);
-    z-index:40;
-    transition:background .4s ease, box-shadow .4s ease;
-  }
-
-  #syncDot.connecting{
-    background:#f5a623;
-    box-shadow:0 0 0 0 rgba(245,166,35,.6);
-    animation:syncPulse 1.2s infinite;
-  }
-
-  #syncDot.synced{
-    background:#4cd964;
-    box-shadow:none;
-  }
-
-  #syncDot.error{
-    background:#ff3b30;
-    box-shadow:none;
-  }
-
-  @keyframes syncPulse{
-    0%{ box-shadow:0 0 0 0 rgba(245,166,35,.6); }
-    70%{ box-shadow:0 0 0 6px rgba(245,166,35,0); }
-    100%{ box-shadow:0 0 0 0 rgba(245,166,35,0); }
-  }
-
   /* ---------- Toast de error/aviso ---------- */
 
   #toastContainer{
@@ -529,6 +493,50 @@
   @keyframes toastOut{
     from{ opacity:1; transform:scale(1); }
     to{ opacity:0; transform:scale(.9); }
+  }
+
+  /* ---------- Duplicados de nombre ---------- */
+
+  #nameDuplicates{
+    display:none;
+    flex-direction:column;
+    gap:5px;
+    padding:6px 2px 0;
+  }
+
+  #nameDupHint{
+    font-size:0.72rem;
+    color:var(--muted);
+    padding-left:2px;
+    margin-bottom:1px;
+  }
+
+  .nameDupItem{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:8px 12px;
+    border-radius:9px;
+    background:#070707;
+    border:1px solid var(--border);
+    overflow:hidden;
+  }
+
+  .nameDupName{
+    font-size:0.85rem;
+    color:#888888;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    flex:1;
+  }
+
+  .nameDupPrice{
+    font-size:0.85rem;
+    color:#555555;
+    flex-shrink:0;
+    white-space:nowrap;
   }
 
   #celebrateOverlay{
@@ -658,7 +666,6 @@
 
 <button id="addBtn" aria-label="Agregar producto" aria-haspopup="dialog"><span>+</span></button>
 
-<div id="syncDot" title="Estado de sincronización"></div>
 <div id="toastContainer"></div>
 
 <div id="modalOverlay" role="dialog" aria-modal="true" aria-label="Producto">
@@ -667,6 +674,7 @@
       <label for="fieldName">Nombre</label>
       <input id="fieldName" type="text" autocomplete="off" enterkeyhint="next">
     </div>
+    <div id="nameDuplicates"></div>
 
     <div class="field">
       <label for="fieldCategory">Categoría</label>
@@ -740,14 +748,14 @@
   // En cuanto pongas tus claves reales, se conecta sola a Firestore.
   // ============================================================
   const firebaseConfig = {
-  apiKey: "AIzaSyC7lbtUJk1vVD_5Lh-lEq7DW6GM1Frv4lc",
-  authDomain: "venarios.firebaseapp.com",
-  projectId: "venarios",
-  storageBucket: "venarios.firebasestorage.app",
-  messagingSenderId: "219743471671",
-  appId: "1:219743471671:web:061e567e9d4b6cddc3d7b2",
-  measurementId: "G-Z4WCNB7QT9"
-};
+    apiKey: "AIzaSyC7lbtUJk1vVD_5Lh-lEq7DW6GM1Frv4lc",
+    authDomain: "venarios.firebaseapp.com",
+    projectId: "venarios",
+    storageBucket: "venarios.firebasestorage.app",
+    messagingSenderId: "219743471671",
+    appId: "1:219743471671:web:061e567e9d4b6cddc3d7b2",
+    measurementId: "G-Z4WCNB7QT9"
+  };
 </script>
 
 <script>
@@ -799,15 +807,10 @@
   const celebrateLabel = document.getElementById("celebrateLabel");
   let celebrateTimer = null;
 
-  const syncDot = document.getElementById("syncDot");
   const toastContainer = document.getElementById("toastContainer");
+  const nameDuplicates = document.getElementById("nameDuplicates");
 
-  // ---------- Indicador de sync y toasts ----------
-
-  function setSyncStatus(status){
-    syncDot.className = "";
-    if (status) syncDot.classList.add(status);
-  }
+  // ---------- Toasts ----------
 
   function showToast(msg, isError, duration){
     const t = document.createElement("div");
@@ -1135,6 +1138,45 @@
     searchInput.focus();
   });
 
+  // ---------- Buscador de duplicados en el campo Nombre ----------
+
+  function updateNameDuplicates(){
+    const q = fieldName.value.trim();
+    // Solo se muestra al agregar (editingId null), no al editar
+    if (editingId !== null || !q){
+      nameDuplicates.style.display = "none";
+      nameDuplicates.innerHTML = "";
+      return;
+    }
+    const matches = searchProducts(q).slice(0, 4);
+    if (matches.length === 0){
+      nameDuplicates.style.display = "none";
+      nameDuplicates.innerHTML = "";
+      return;
+    }
+    nameDuplicates.innerHTML = "";
+    const hint = document.createElement("div");
+    hint.id = "nameDupHint";
+    hint.textContent = "Productos similares:";
+    nameDuplicates.appendChild(hint);
+    matches.forEach(p => {
+      const item = document.createElement("div");
+      item.className = "nameDupItem";
+      const name = document.createElement("span");
+      name.className = "nameDupName";
+      name.textContent = p.name;
+      const price = document.createElement("span");
+      price.className = "nameDupPrice";
+      price.textContent = "Q" + formatPrice(p.price);
+      item.appendChild(name);
+      item.appendChild(price);
+      nameDuplicates.appendChild(item);
+    });
+    nameDuplicates.style.display = "flex";
+  }
+
+  fieldName.addEventListener("input", updateNameDuplicates);
+
   // ---------- Categoría: buscador / autocompletar ----------
 
   function getCategories(){
@@ -1270,8 +1312,8 @@
     fieldPrice.value = "";
     clearFieldErrors();
     deleteBtn.style.display = "none";
+    lockModalFields();
     modalOverlay.classList.add("open");
-    unlockInput(fieldName);
     setTimeout(() => fieldName.focus(), 80);
   }
 
@@ -1285,14 +1327,16 @@
     fieldPrice.value = p.price;
     clearFieldErrors();
     deleteBtn.style.display = "inline-block";
+    lockModalFields();
     modalOverlay.classList.add("open");
-    unlockInput(fieldName);
     setTimeout(() => fieldName.focus(), 80);
   }
 
   function closeModal(){
     modalOverlay.classList.remove("open");
     closeCategorySuggestions();
+    nameDuplicates.style.display = "none";
+    nameDuplicates.innerHTML = "";
   }
 
   function handleSave(){
@@ -1360,6 +1404,7 @@
       celebrateAdded(name);
     }
 
+    playSaveSound();
     closeModal();
   }
 
@@ -1370,6 +1415,58 @@
   modalOverlay.addEventListener("click", (e) => {
     if (e.target === modalOverlay) closeModal();
   });
+
+  // ---------- Sonido al guardar ----------
+
+  function playSaveSound(){
+    try{
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      // Notas del acorde ascendente: Do5 → Mi5 → Sol5
+      const notes = [
+        { freq: 523.25, start: 0,    dur: 0.28, vol: 0.13 },
+        { freq: 659.25, start: 0.07, dur: 0.28, vol: 0.11 },
+        { freq: 783.99, start: 0.14, dur: 0.38, vol: 0.09 }
+      ];
+
+      notes.forEach(({ freq, start, dur, vol }) => {
+        const now = ctx.currentTime;
+
+        // Oscilador principal (senoidal = timbre limpio)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + start);
+        gain.gain.setValueAtTime(0, now + start);
+        gain.gain.linearRampToValueAtTime(vol, now + start + 0.01); // ataque rápido
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur); // caída suave
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + dur + 0.02);
+
+        // Segunda armónica (octava + quinta) muy suave para dar brillo
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(freq * 2.5, now + start);
+        gain2.gain.setValueAtTime(0, now + start);
+        gain2.gain.linearRampToValueAtTime(vol * 0.25, now + start + 0.01);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + start + dur * 0.6);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + start);
+        osc2.stop(now + start + dur);
+      });
+
+      // Cerrar el contexto cuando el sonido termina
+      setTimeout(() => { try{ ctx.close(); }catch(_){} }, 900);
+    }catch(_){
+      // Navegador sin soporte de audio o política de autoplay; se ignora.
+    }
+  }
 
   // ---------- Celebración al agregar un producto nuevo ----------
 
@@ -1476,25 +1573,51 @@
   // una barra arriba del teclado con accesos a contraseñas, tarjetas y
   // direcciones guardadas. No hay un atributo HTML 100% garantizado para
   // desactivarla (es un comportamiento del propio Chrome/Android, no solo
-  // de esta página), pero el truco más efectivo y usado es: el campo
-  // empieza en "solo lectura" para que el navegador no lo detecte como
-  // un campo "rellenable", y se vuelve editable justo en el momento en
-  // que la persona realmente lo toca o entra a él a propósito.
+  // El keyboard accessory bar (los íconos de 🔑💳📍 sobre el teclado en Chrome Android)
+  // aparece cuando el navegador detecta que un campo puede autocompletarse. El truco más
+  // efectivo: el campo empieza en "solo lectura" (readonly) para que el navegador no lo
+  // marque como campo rellenable, y se vuelve editable solo cuando el usuario lo toca a
+  // propósito. Lo importante es RE-APLICAR esto cada vez que el modal se abre, no solo
+  // una vez al inicio.
 
   function unlockInput(input){
+    if (input._afUnlock){
+      input.removeEventListener("focus", input._afUnlock);
+      input.removeEventListener("touchend", input._afUnlock);
+      delete input._afUnlock;
+    }
     input.removeAttribute("readonly");
   }
 
+  function lockModalFields(){
+    [fieldName, fieldCategory, fieldKeywords, fieldPrice].forEach(input => {
+      // Limpiar listeners previos para no acumular
+      if (input._afUnlock){
+        input.removeEventListener("focus", input._afUnlock);
+        input.removeEventListener("touchend", input._afUnlock);
+      }
+      input.setAttribute("readonly", "");
+      const fn = function(e){
+        if (e && e.isTrusted === false) return; // foco programático → no desbloquear
+        unlockInput(input);
+      };
+      input._afUnlock = fn;
+      input.addEventListener("focus", fn);
+      input.addEventListener("touchend", fn, { passive: true });
+    });
+  }
+
+  // Para la barra de búsqueda principal se aplica una sola vez al cargar
   function disableAutofillBar(input){
     input.setAttribute("readonly", "");
-    function unlock(e){
-      if (e && e.isTrusted === false) return; // ignora foco/touch disparado por nuestro propio código
+    const fn = function(e){
+      if (e && e.isTrusted === false) return;
       input.removeAttribute("readonly");
-      input.removeEventListener("focus", unlock);
-      input.removeEventListener("touchstart", unlock);
-    }
-    input.addEventListener("focus", unlock);
-    input.addEventListener("touchstart", unlock, { passive: true });
+      input.removeEventListener("focus", fn);
+      input.removeEventListener("touchend", fn);
+    };
+    input.addEventListener("focus", fn);
+    input.addEventListener("touchend", fn, { passive: true });
   }
 
   // ====================================================================
@@ -1552,13 +1675,11 @@
 
       productsCollection = db.collection(FIRESTORE_COLLECTION);
       firestoreReady = true;
-      setSyncStatus("connecting");
       console.log("[Firebase] Conectando a la colección:", FIRESTORE_COLLECTION);
       subscribeToProducts();
 
     }catch(e){
       console.error("[Firebase] Error al inicializar:", e);
-      setSyncStatus("error");
       showToast("No se pudo conectar a la nube. Los datos se guardan solo localmente.", true);
       firestoreReady = false;
     }
@@ -1582,7 +1703,6 @@
           });
         });
 
-        setSyncStatus("synced");
         console.log("[Firebase] Snapshot recibido:", remote.length, "productos.");
 
         // Migración única: si Firestore está vacío pero ya teníamos datos
@@ -1603,7 +1723,6 @@
       // ── Error en el listener (permisos, red, etc.) ──
       (error) => {
         console.error("[Firebase] Error en onSnapshot:", error);
-        setSyncStatus("error");
 
         let msg = "Error al sincronizar con la nube.";
         if (error.code === "permission-denied"){
@@ -1637,12 +1756,9 @@
 
   // Wrapper para writes con feedback visible si fallan
   function fsWrite(promise, errorMsg){
-    setSyncStatus("connecting");
     return promise
-      .then(() => setSyncStatus("synced"))
       .catch((err) => {
         console.error("[Firebase] Error al escribir:", err);
-        setSyncStatus("error");
         let detail = errorMsg || "Error al guardar en la nube.";
         if (err.code === "permission-denied"){
           detail = "Permiso denegado. Revisá las reglas de seguridad en Firebase Console.";
@@ -1656,7 +1772,7 @@
   loadProducts();           // copia local: lista para buscar al instante
   updateAddBtnVisibility();
   updateClearButton();
-  [searchInput, fieldName, fieldCategory, fieldKeywords, fieldPrice].forEach(disableAutofillBar);
+  disableAutofillBar(searchInput); // evita la barra de autofill en la búsqueda principal
   initFirebase();            // si hay claves configuradas, sincroniza con Firestore
 
 })();
